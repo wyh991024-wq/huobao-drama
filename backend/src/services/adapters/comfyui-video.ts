@@ -22,7 +22,7 @@
  *   - LoadVideo / LoadAudio：填第 1 个参考视频 / 音频
  *   - seed / noise_seed：每次随机（record.seed 优先；settings.randomizeSeed=false 关闭）
  *
- * MiniMax H3 工作流（含 MiniMaxH3* 节点时自动识别）：尺寸取 32 的倍数，帧数落在 17k+5（4-15 秒），fps 默认 24；
+ * MiniMax H3 工作流（含 MiniMaxH3* 节点时自动识别）：尺寸取 32 的倍数，帧数落在 17k+5（3-15 秒，低于约 5 秒已超出模型训练范围），fps 默认 24；
  * 自动填充直接写 H3 节点的 prompt/width/height/length，并按实际素材数连接 ref_images / ref_audios / first_frame / last_frame。
  *
  * settings 可选项：negativePrompt、fps(默认 16)、width/height(覆盖分辨率换算)、autoFill、randomizeSeed、
@@ -98,9 +98,9 @@ export function framesFor(duration: number, fps: number): number {
   return Math.floor((raw - 1) / 4) * 4 + 1
 }
 
-/** MiniMax H3：时长限制 4-15 秒，帧数向上对齐 17k+5（5 秒@24fps → 124 帧） */
+/** MiniMax H3：时长限制 3-15 秒，帧数向上对齐 17k+5（3 秒 → 73 帧，5 秒 → 124 帧），官方训练范围约 124-362 帧 */
 export function miniMaxH3FramesFor(duration: number, fps: number): number {
-  const seconds = Math.min(15, Math.max(4, duration))
+  const seconds = Math.min(15, Math.max(3, duration))
   let frames = Math.max(5, Math.round(seconds * fps))
   while (frames % 17 !== 5) frames++
   return frames
