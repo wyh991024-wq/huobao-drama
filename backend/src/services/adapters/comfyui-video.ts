@@ -106,6 +106,13 @@ export function miniMaxH3FramesFor(duration: number, fps: number): number {
   return frames
 }
 
+/** 工作台按云端 API 写法输出 @图片1、音色参考音频1；本地 H3 文本编码器使用 <Picture i> / <Audio j> 标签 */
+export function toMiniMaxH3Tags(prompt: string): string {
+  return prompt
+    .replace(/@图片(\d+)\s*/g, '<Picture $1> ')
+    .replace(/音色参考音频(\d+)/g, '<Audio $1>')
+}
+
 const isH3Node = (node: WorkflowNode) => /MiniMaxH3/.test(node.class_type || '')
 
 export class ComfyUIVideoAdapter implements VideoProviderAdapter {
@@ -121,9 +128,10 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
     const workflow = this.loadWorkflow(settings)
     const autoFill = settings.autoFill !== false
 
-    const prompt = (record.prompt || '').trim()
     const negativePrompt = (settings.negativePrompt || '').trim()
     const h3 = Object.values(workflow).some(isH3Node)
+    const rawPrompt = (record.prompt || '').trim()
+    const prompt = h3 ? toMiniMaxH3Tags(rawPrompt) : rawPrompt
     const fps = Number(settings.fps) > 0 ? Number(settings.fps) : (h3 ? 24 : 16)
     const duration = Number(record.duration) > 0 ? Number(record.duration) : 5
     const dims = resolveDimensions(record.resolution, record.aspectRatio, h3 ? 32 : 16)
