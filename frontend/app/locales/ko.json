@@ -439,7 +439,7 @@
       "comfyNegative": "부정 프롬프트",
       "comfyNegativePlaceholder": "선택. 부정 CLIPTextEncode 또는 negative_prompt 자리표시자에 기록됩니다",
       "comfyFps": "프레임 레이트 (fps)",
-      "comfyFpsHint": "샷 길이를 frames 자리표시자(4n+1)로 환산할 때 사용. 기본 16",
+      "comfyFpsHint": "샷 길이를 frames 자리표시자(4n+1)로 환산할 때 사용. 기본 16, MiniMax H3 워크플로는 24",
       "comfyFpsInvalid": "프레임 레이트는 0보다 큰 숫자여야 합니다"
     },
     "styleDialog": {

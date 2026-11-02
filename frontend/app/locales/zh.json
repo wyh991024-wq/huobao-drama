@@ -439,7 +439,7 @@
       "comfyNegative": "负向提示词",
       "comfyNegativePlaceholder": "可选；填入后写进负向 CLIPTextEncode 或 negative_prompt 占位符",
       "comfyFps": "帧率 (fps)",
-      "comfyFpsHint": "用于把分镜时长换算成 frames 占位符（4n+1 帧），默认 16",
+      "comfyFpsHint": "用于把分镜时长换算成 frames 占位符（4n+1 帧），默认 16，MiniMax H3 工作流默认 24",
       "comfyFpsInvalid": "帧率需为大于 0 的数字"
     },
     "styleDialog": {

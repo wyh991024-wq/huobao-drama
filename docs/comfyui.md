@@ -77,6 +77,12 @@
 - 图片类占位符对应的素材会先上传到 ComfyUI 的 `input/huobao/` 目录，写进节点的是文件名。
 - 用了占位符的字段不再自动填充；两种方式可以混用（例如只写 `{{frames}}`，提示词和图片靠自动填充）。
 
+## MiniMax H3 工作流
+
+工作流含 `MiniMaxH3*` 节点时自动启用 H3 规则：尺寸取 32 的倍数（720p 16:9 为 1280x736），帧数对齐 17k+5（5 秒为 124 帧，15 秒为 362 帧），时长限制在 4 到 15 秒，帧率默认 24。
+
+推荐从官方 `video_minimax_h3_r2v.json` 模板导出 API 工作流。自动填充会覆盖 H3 节点的 prompt、width、height、length，并按分镜实际绑定的图片和音色数量重建 ref_images、ref_audios 连线，所以模板里的示例图不会混进结果。参考视频需要在 LoadVideo 节点里写占位符。关闭 autoFill 可以保留工作流里写死的尺寸和帧数。
+
 ## 4. 高级选项
 
 这些选项目前没有界面，需要直接改数据库 `ai_service_configs.settings` 的 JSON（或用 `PUT /api/v1/ai-configs/:id` 传 `settings`）：
