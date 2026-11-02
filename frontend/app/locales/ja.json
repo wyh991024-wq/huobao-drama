@@ -439,7 +439,7 @@
       "comfyNegative": "ネガティブプロンプト",
       "comfyNegativePlaceholder": "任意。負側の CLIPTextEncode または negative_prompt プレースホルダーに書き込まれます",
       "comfyFps": "フレームレート (fps)",
-      "comfyFpsHint": "ショットの長さを frames プレースホルダー（4n+1）に換算するために使用。既定 16",
+      "comfyFpsHint": "ショットの長さを frames プレースホルダー（4n+1）に換算するために使用。既定 16（MiniMax H3 ワークフローは 24）",
       "comfyFpsInvalid": "フレームレートは 0 より大きい数値で入力してください"
     },
     "styleDialog": {

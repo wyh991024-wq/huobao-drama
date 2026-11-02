@@ -22,6 +22,9 @@
  *   - LoadVideo / LoadAudio：填第 1 个参考视频 / 音频
  *   - seed / noise_seed：每次随机（record.seed 优先；settings.randomizeSeed=false 关闭）
  *
+ * MiniMax H3 工作流（含 MiniMaxH3* 节点时自动识别）：尺寸取 32 的倍数，帧数落在 17k+5（4-15 秒），fps 默认 24；
+ * 自动填充直接写 H3 节点的 prompt/width/height/length，并按实际素材数连接 ref_images / ref_audios / first_frame / last_frame。
+ *
  * settings 可选项：negativePrompt、fps(默认 16)、width/height(覆盖分辨率换算)、autoFill、randomizeSeed、
  *   clientId、headers(附加请求头)、outputNode(指定取结果的节点 id)、uploadSubfolder(默认 huobao)
  */
@@ -76,12 +79,9 @@ function parseUrlArray(raw?: string | null): string[] {
   }
 }
 
-function round16(n: number) {
-  return Math.max(16, Math.round(n / 16) * 16)
-}
-
 /** 项目内部分辨率档位 + 画幅比例 → 像素尺寸（16 的倍数） */
-export function resolveDimensions(resolution?: string | null, aspectRatio?: string | null): { width: number; height: number } {
+export function resolveDimensions(resolution?: string | null, aspectRatio?: string | null, multiple = 16): { width: number; height: number } {
+  const round16 = (n: number) => Math.max(multiple, Math.round(n / multiple) * multiple)
   const r = String(resolution || '').toLowerCase()
   const tier = r === '480p' ? 480 : r === '1080p' || r === '2k' ? 1080 : 720
   const m = String(aspectRatio || '16:9').match(/^(\d+(?:\.\d+)?)\s*[:x]\s*(\d+(?:\.\d+)?)$/)
@@ -98,6 +98,16 @@ export function framesFor(duration: number, fps: number): number {
   return Math.floor((raw - 1) / 4) * 4 + 1
 }
 
+/** MiniMax H3：时长限制 4-15 秒，帧数向上对齐 17k+5（5 秒@24fps → 124 帧） */
+export function miniMaxH3FramesFor(duration: number, fps: number): number {
+  const seconds = Math.min(15, Math.max(4, duration))
+  let frames = Math.max(5, Math.round(seconds * fps))
+  while (frames % 17 !== 5) frames++
+  return frames
+}
+
+const isH3Node = (node: WorkflowNode) => /MiniMaxH3/.test(node.class_type || '')
+
 export class ComfyUIVideoAdapter implements VideoProviderAdapter {
   provider = 'comfyui'
 
@@ -113,9 +123,10 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
 
     const prompt = (record.prompt || '').trim()
     const negativePrompt = (settings.negativePrompt || '').trim()
-    const fps = Number(settings.fps) > 0 ? Number(settings.fps) : 16
+    const h3 = Object.values(workflow).some(isH3Node)
+    const fps = Number(settings.fps) > 0 ? Number(settings.fps) : (h3 ? 24 : 16)
     const duration = Number(record.duration) > 0 ? Number(record.duration) : 5
-    const dims = resolveDimensions(record.resolution, record.aspectRatio)
+    const dims = resolveDimensions(record.resolution, record.aspectRatio, h3 ? 32 : 16)
     const width = Number(settings.width) > 0 ? Number(settings.width) : dims.width
     const height = Number(settings.height) > 0 ? Number(settings.height) : dims.height
     const seed = record.seed != null && Number.isFinite(Number(record.seed))
@@ -139,6 +150,7 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
       return uploads.get(value)!
     }
 
+    const frames = h3 ? miniMaxH3FramesFor(duration, fps) : framesFor(duration, fps)
     const vars: Record<string, string | number> = {
       prompt,
       negative_prompt: negativePrompt,
@@ -146,7 +158,7 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
       height,
       duration,
       fps,
-      frames: framesFor(duration, fps),
+      frames,
       seed,
       model: record.model || config.model || '',
       aspect_ratio: record.aspectRatio || '16:9',
@@ -182,13 +194,51 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
       const mediaUsed = (kind: MediaKind) => [...used].some((n) =>
         n === kind || n.startsWith(`${kind}_`) || (kind === 'image' && (n === 'first_frame' || n === 'last_frame')))
 
-      if (!used.has('prompt') || (!used.has('negative_prompt') && negativePrompt)) {
+      // H3 节点：字段直接写值，覆盖模板里接到 Primitive / 数学表达式节点的连线（断开后的节点不会被执行）
+      let h3HasPrompt = false
+      let h3WiredMedia = false
+      for (const id of Object.keys(workflow)) {
+        const node = workflow[id]
+        if (!isH3Node(node) || !node.inputs) continue
+        if ('width' in node.inputs && 'height' in node.inputs) {
+          node.inputs.width = width
+          node.inputs.height = height
+        }
+        if ('length' in node.inputs) node.inputs.length = frames
+        if ('prompt' in node.inputs) {
+          h3HasPrompt = true
+          if (!used.has('prompt') && prompt) node.inputs.prompt = prompt
+        }
+        const type = node.class_type || ''
+        if (type === 'MiniMaxH3ReferenceToVideo') {
+          h3WiredMedia = true
+          if (!mediaUsed('image')) {
+            const names = await Promise.all(images.map((u) => upload(u, 'image')))
+            wireAutogrow(workflow, id, 'ref_images.ref_image_', 'LoadImage', 'image', names)
+          }
+          if (!mediaUsed('audio')) {
+            const names = await Promise.all(audios.map((u) => upload(u, 'audio')))
+            wireAutogrow(workflow, id, 'ref_audios.ref_audio_', 'LoadAudio', 'audio', names)
+          }
+          if (videos.length && !mediaUsed('video')) {
+            throw new Error('MiniMax H3 工作流收到参考视频：请在工作流的 LoadVideo 节点中写 {{video}} / {{video_1}} 占位符')
+          }
+        } else if (type === 'MiniMaxH3ImageToVideo') {
+          h3WiredMedia = true
+          if (!mediaUsed('image')) {
+            wireOptionalImage(workflow, id, 'first_frame', firstFrame ? await upload(firstFrame, 'image') : '')
+            wireOptionalImage(workflow, id, 'last_frame', lastFrame ? await upload(lastFrame, 'image') : '')
+          }
+        }
+      }
+
+      if ((!used.has('prompt') && !h3HasPrompt) || (!used.has('negative_prompt') && negativePrompt)) {
         const { positive, negative } = findTextEncodeNodes(workflow)
-        if (!used.has('prompt') && prompt && positive) workflow[positive].inputs!.text = prompt
+        if (!used.has('prompt') && !h3HasPrompt && prompt && positive) workflow[positive].inputs!.text = prompt
         if (!used.has('negative_prompt') && negativePrompt && negative) workflow[negative].inputs!.text = negativePrompt
       }
 
-      if (!mediaUsed('image') && images.length) {
+      if (!h3WiredMedia && !mediaUsed('image') && images.length) {
         const loaders = findLoaderNodes(workflow, 'image')
         // 顺序：首帧/主图 → 尾帧 → 其余参考图；标题含 last/end/尾 的节点优先拿尾帧
         const rest = images.filter((u) => u !== firstFrame)
@@ -208,7 +258,7 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
       if (!mediaUsed('video') && videos[0]) {
         for (const id of findLoaderNodes(workflow, 'video').slice(0, 1)) workflow[id].inputs!.video = await upload(videos[0], 'video')
       }
-      if (!mediaUsed('audio') && audios[0]) {
+      if (!h3WiredMedia && !mediaUsed('audio') && audios[0]) {
         for (const id of findLoaderNodes(workflow, 'audio').slice(0, 1)) workflow[id].inputs!.audio = await upload(audios[0], 'audio')
       }
       if (!used.has('seed') && settings.randomizeSeed !== false) {
@@ -462,6 +512,26 @@ function findLoaderNodes(workflow: Workflow, kind: MediaKind): string[] {
   return Object.keys(workflow)
     .filter((id) => classRe.test(workflow[id].class_type || '') && typeof workflow[id].inputs?.[kind] === 'string')
     .sort((a, b) => Number(a) - Number(b))
+}
+
+/** 按实际素材数重建 Autogrow 输入（如 ref_images.ref_image_0…），每个素材一个新的加载节点 */
+function wireAutogrow(workflow: Workflow, nodeId: string, prefix: string, loader: string, field: string, names: string[]) {
+  const inputs = workflow[nodeId].inputs!
+  for (const key of Object.keys(inputs)) if (key.startsWith(prefix)) delete inputs[key]
+  names.forEach((name, i) => {
+    const loaderId = `huobao_${nodeId}_${field}_${i}`.replace(/:/g, '_')
+    workflow[loaderId] = { class_type: loader, inputs: { [field]: name } }
+    inputs[`${prefix}${i}`] = [loaderId, 0]
+  })
+}
+
+function wireOptionalImage(workflow: Workflow, nodeId: string, key: string, name: string) {
+  const inputs = workflow[nodeId].inputs!
+  delete inputs[key]
+  if (!name) return
+  const loaderId = `huobao_${nodeId}_${key}`.replace(/:/g, '_')
+  workflow[loaderId] = { class_type: 'LoadImage', inputs: { image: name } }
+  inputs[key] = [loaderId, 0]
 }
 
 function describeExecutionError(messages: any): string {

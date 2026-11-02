@@ -439,7 +439,7 @@
       "comfyNegative": "Negative prompt",
       "comfyNegativePlaceholder": "Optional; written into the negative CLIPTextEncode or the negative_prompt placeholder",
       "comfyFps": "Frame rate (fps)",
-      "comfyFpsHint": "Used to turn shot duration into the frames placeholder (4n+1); default 16",
+      "comfyFpsHint": "Used to turn shot duration into the frames placeholder (4n+1); default 16, or 24 for MiniMax H3 workflows",
       "comfyFpsInvalid": "Frame rate must be a number greater than 0"
     },
     "styleDialog": {
