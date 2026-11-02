@@ -4,7 +4,7 @@ import { db, getInsertId, schema } from '../db/index.js'
 import { success, notFound, created, badRequest, now } from '../utils/response.js'
 import { toSnakeCase } from '../utils/transform.js'
 import { joinProviderUrl } from '../services/adapters/url.js'
-import { isOfficialProvider, parseConfigTemperature } from '../services/ai.js'
+import { isOfficialProvider, parseConfigSettings, parseConfigTemperature } from '../services/ai.js'
 import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../utils/task-logger.js'
 
 const app = new Hono()
@@ -17,13 +17,46 @@ function normalizeTemperature(v: any): number | null {
   return n
 }
 
-/** 把 settings JSON 中的 temperature 透出为顶层字段，便于前端直接读写 */
+/** 把 settings JSON 中的 temperature 透出为顶层字段，便于前端直接读写；settings 本身以对象形式返回 */
 function withParsedFields(r: any) {
   return {
     ...toSnakeCase(r),
     model: r.model ? JSON.parse(r.model) : [],
     temperature: parseConfigTemperature(r.settings),
+    settings: parseConfigSettings(r.settings),
   }
+}
+
+/**
+ * 合并 settings 补丁：body.settings 为对象时逐键覆盖，值为 null 的键删除。
+ * temperature 单独处理（保持原有顶层字段语义）。返回 null 表示 settings 应清空。
+ */
+function mergeSettings(existingRaw: string | null | undefined, patch: unknown): Record<string, any> {
+  const settings: Record<string, any> = parseConfigSettings(existingRaw) || {}
+  if (patch && typeof patch === 'object' && !Array.isArray(patch)) {
+    for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+      if (value === null || value === undefined) delete settings[key]
+      else settings[key] = value
+    }
+  }
+  return settings
+}
+
+/** ComfyUI 工作流必须是「导出 (API)」格式：{ "<节点id>": { class_type, inputs } } */
+function validateComfyWorkflow(settings: Record<string, any>): string | null {
+  let wf = settings.workflow
+  if (typeof wf === 'string') {
+    try { wf = JSON.parse(wf) } catch { return 'ComfyUI 工作流不是合法 JSON' }
+    settings.workflow = wf
+  }
+  if (!wf || typeof wf !== 'object' || Array.isArray(wf)) return '请粘贴 ComfyUI「导出 (API)」格式的工作流 JSON'
+  const hasNode = Object.values(wf).some((n: any) => n && typeof n === 'object' && typeof n.class_type === 'string')
+  if (!hasNode) {
+    return Array.isArray((wf as any).nodes)
+      ? '粘贴的是 ComfyUI 界面格式工作流，请在 ComfyUI 开启开发者模式后使用「导出 (API)」'
+      : 'ComfyUI 工作流中没有任何节点（缺少 class_type）'
+  }
+  return null
 }
 
 function bearerHeaders(apiKey?: string, withJson = false) {
@@ -107,6 +140,16 @@ function buildProbe(serviceType: string, provider: string, baseUrl: string, mode
     }
   }
 
+  if (p === 'comfyui') {
+    // ComfyUI 无鉴权时 /system_stats 直接返回设备与版本信息，用于确认地址可达
+    return {
+      method: 'GET',
+      url: joinProviderUrl(baseUrl, '', '/system_stats'),
+      headers: bearerHeaders(apiKey),
+      body: undefined,
+    }
+  }
+
   return {
     method: 'GET',
     url: joinProviderUrl(baseUrl, '', m ? `/${m}` : '/'),
@@ -138,13 +181,19 @@ app.post('/', async (c) => {
     return badRequest(c, '不支持的 service_type/provider')
   }
 
-  let temperature: number | null = null
+  const settings = mergeSettings(null, body.settings)
   if ('temperature' in body) {
     try {
-      temperature = normalizeTemperature(body.temperature)
+      const temperature = normalizeTemperature(body.temperature)
+      if (temperature === null) delete settings.temperature
+      else settings.temperature = temperature
     } catch {
       return badRequest(c, 'temperature 须为 0 到 2 之间的数字')
     }
+  }
+  if (String(body.provider).toLowerCase() === 'comfyui') {
+    const problem = validateComfyWorkflow(settings)
+    if (problem) return badRequest(c, problem)
   }
 
   const res = await db.insert(schema.aiServiceConfigs).values({
@@ -156,7 +205,7 @@ app.post('/', async (c) => {
     model: JSON.stringify(body.model || []),
     priority: body.priority || 0,
     isActive: true,
-    settings: temperature !== null ? JSON.stringify({ temperature }) : null,
+    settings: Object.keys(settings).length ? JSON.stringify(settings) : null,
     createdAt: ts,
     updatedAt: ts,
   })
@@ -270,18 +319,22 @@ app.put('/:id', async (c) => {
   if ('model' in body) updates.model = JSON.stringify(body.model)
   if ('priority' in body) updates.priority = body.priority
   if ('is_active' in body) updates.isActive = body.is_active
-  if ('temperature' in body) {
-    let temperature: number | null
-    try {
-      temperature = normalizeTemperature(body.temperature)
-    } catch {
-      return badRequest(c, 'temperature 须为 0 到 2 之间的数字')
+  if ('temperature' in body || 'settings' in body) {
+    // 与已有 settings 合并：settings 补丁逐键覆盖（null 删除），清空的 temperature 从 JSON 中移除
+    const settings = mergeSettings(existing.settings, body.settings)
+    if ('temperature' in body) {
+      try {
+        const temperature = normalizeTemperature(body.temperature)
+        if (temperature === null) delete settings.temperature
+        else settings.temperature = temperature
+      } catch {
+        return badRequest(c, 'temperature 须为 0 到 2 之间的数字')
+      }
     }
-    // 与已有 settings 合并，清空的 temperature 从 JSON 中移除
-    let settings: Record<string, any> = {}
-    try { settings = existing.settings ? JSON.parse(existing.settings) : {} } catch { settings = {} }
-    if (temperature === null) delete settings.temperature
-    else settings.temperature = temperature
+    if (String(provider).toLowerCase() === 'comfyui') {
+      const problem = validateComfyWorkflow(settings)
+      if (problem) return badRequest(c, problem)
+    }
     updates.settings = Object.keys(settings).length ? JSON.stringify(settings) : null
   }
 

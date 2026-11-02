@@ -16,6 +16,19 @@ export interface AIConfig {
   model: string
   /** 采样温度，null 表示不设置（跟随服务商默认）。存于 ai_service_configs.settings JSON */
   temperature?: number | null
+  /** ai_service_configs.settings 解析后的完整对象（如 ComfyUI 的 workflow / fps / negativePrompt） */
+  settings?: Record<string, any> | null
+}
+
+/** 解析 settings JSON 为对象；非法、为空或不是对象一律返回 null */
+export function parseConfigSettings(settingsRaw: string | null | undefined): Record<string, any> | null {
+  if (!settingsRaw) return null
+  try {
+    const parsed = JSON.parse(settingsRaw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 /** 从 settings JSON 解析 temperature；非法值一律视为未设置 */
@@ -32,7 +45,8 @@ export function parseConfigTemperature(settingsRaw: string | null | undefined): 
 export const officialProviders: Record<ServiceType, readonly string[]> = {
   text: ['openai', 'gemini', 'volcengine'],
   image: ['openai', 'gemini', 'volcengine'],
-  video: ['volcengine', 'minimax', 'aliyun'],
+  // comfyui：本地/内网 ComfyUI 工作流（API 格式 JSON 存在 settings.workflow）
+  video: ['volcengine', 'minimax', 'aliyun', 'comfyui'],
 }
 
 export function isOfficialProvider(serviceType?: string | null, provider?: string | null): boolean {
@@ -94,6 +108,7 @@ export async function getActiveConfig(serviceType: ServiceType): Promise<AIConfi
     apiKey: active.apiKey,
     model: models[0] || '',
     temperature: parseConfigTemperature(active.settings),
+    settings: parseConfigSettings(active.settings),
   }
 }
 
@@ -148,5 +163,6 @@ export async function getConfigById(id: number): Promise<AIConfig | null> {
     apiKey: row.apiKey,
     model: models[0] || '',
     temperature: parseConfigTemperature(row.settings),
+    settings: parseConfigSettings(row.settings),
   }
 }

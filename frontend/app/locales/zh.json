@@ -311,7 +311,8 @@
         "text": "剧本改写、角色场景提取、分镜拆解等 Agent 文本能力",
         "image": "角色图、场景图与镜头图等静态图像生成",
         "video": "镜头视频直出生成，默认 Seedance 2.0"
-      }
+      },
+      "localService": "本地服务"
     },
     "styles": {
       "title": "风格预设",
@@ -425,7 +426,21 @@
       "reachable": "端点已响应",
       "unreachable": "端点未通过测试",
       "providerRequired": "选择服务商",
-      "tempInvalid": "Temperature 需为 0~2 的数字"
+      "tempInvalid": "Temperature 需为 0~2 的数字",
+      "optional": "可留空",
+      "comfyKeyPlaceholder": "ComfyUI 默认无需鉴权，经反代加了 Bearer 鉴权时再填",
+      "comfyWorkflow": "ComfyUI 工作流（API 格式 JSON）",
+      "comfyWorkflowPlaceholder": "在 ComfyUI 中开启「开发者模式」后，用「导出 (API)」保存的 JSON 粘贴到这里",
+      "comfyWorkflowFile": "从文件导入",
+      "comfyWorkflowHint": "也可以直接选择导出的 .json 文件",
+      "comfyPlaceholders": "可在节点输入里写占位符（见下方列表）。不写占位符时自动填充：正/负向 CLIPTextEncode、LoadImage（首帧→尾帧→参考图）、seed 随机。",
+      "comfyWorkflowInvalid": "工作流不是合法 JSON",
+      "comfyWorkflowNotApi": "请粘贴 ComfyUI「导出 (API)」格式的工作流（界面格式不支持）",
+      "comfyNegative": "负向提示词",
+      "comfyNegativePlaceholder": "可选；填入后写进负向 CLIPTextEncode 或 negative_prompt 占位符",
+      "comfyFps": "帧率 (fps)",
+      "comfyFpsHint": "用于把分镜时长换算成 frames 占位符（4n+1 帧），默认 16",
+      "comfyFpsInvalid": "帧率需为大于 0 的数字"
     },
     "styleDialog": {
       "editTitle": "编辑风格预设",

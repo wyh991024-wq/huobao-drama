@@ -15,7 +15,7 @@ export interface ImageProviderAdapter {
   /**
    * 解析生成响应，判断是同步还是异步
    */
-  parseGenerateResponse(result: any): ImageGenResponse
+  parseGenerateResponse(result: any, config?: AIConfig): ImageGenResponse
 
   /**
    * 构建轮询请求
@@ -27,7 +27,7 @@ export interface ImageProviderAdapter {
   /**
    * 解析轮询响应
    */
-  parsePollResponse(result: any): ImagePollResponse
+  parsePollResponse(result: any, config?: AIConfig): ImagePollResponse
 
   /**
    * 从响应中提取图片 URL（用于直接下载）
@@ -50,13 +50,19 @@ export interface VideoProviderAdapter {
 
   buildGenerateRequest(config: AIConfig, record: VideoGenerationRecord): ProviderRequest
 
-  parseGenerateResponse(result: any): VideoGenResponse
+  /**
+   * 可选的异步构建：需要先上传素材等前置 IO 的厂商（如 ComfyUI）实现此方法，
+   * generation.ts 优先调用它，其次才走同步的 buildGenerateRequest
+   */
+  prepareGenerateRequest?(config: AIConfig, record: VideoGenerationRecord): Promise<ProviderRequest>
+
+  parseGenerateResponse(result: any, config?: AIConfig): VideoGenResponse
 
   buildPollRequest(config: AIConfig, taskId: string): ProviderRequest
 
-  parsePollResponse(result: any): VideoPollResponse
+  parsePollResponse(result: any, config?: AIConfig): VideoPollResponse
 
-  extractVideoUrl(result: any): string | null
+  extractVideoUrl(result: any, config?: AIConfig): string | null
 }
 
 // ============ 通用类型 ============
@@ -79,6 +85,8 @@ export interface AIConfig {
   baseUrl: string
   apiKey: string
   model: string
+  /** ai_service_configs.settings 解析后的对象（如 ComfyUI 的 workflow），无则为 null/undefined */
+  settings?: Record<string, any> | null
 }
 
 export interface ImageGenerationRecord {

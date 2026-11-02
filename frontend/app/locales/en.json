@@ -311,7 +311,8 @@
         "text": "Text capabilities: script rewriting, asset extraction, storyboard breaking",
         "image": "Static image generation: characters, scenes and shots",
         "video": "Direct video generation, Seedance 2.0 by default"
-      }
+      },
+      "localService": "Local"
     },
     "styles": {
       "title": "Style Presets",
@@ -425,7 +426,21 @@
       "reachable": "Endpoint responded",
       "unreachable": "Endpoint failed the test",
       "providerRequired": "Select a provider",
-      "tempInvalid": "Temperature must be a number between 0 and 2"
+      "tempInvalid": "Temperature must be a number between 0 and 2",
+      "optional": "optional",
+      "comfyKeyPlaceholder": "ComfyUI needs no key by default; set only if a reverse proxy requires Bearer auth",
+      "comfyWorkflow": "ComfyUI workflow (API-format JSON)",
+      "comfyWorkflowPlaceholder": "Enable Dev mode in ComfyUI, then paste the JSON saved with “Export (API)”",
+      "comfyWorkflowFile": "Import file",
+      "comfyWorkflowHint": "or pick the exported .json file",
+      "comfyPlaceholders": "Placeholders (listed below) can be put in node inputs. Without placeholders, positive/negative CLIPTextEncode, LoadImage (first frame → last frame → references) and seed are filled automatically.",
+      "comfyWorkflowInvalid": "Workflow is not valid JSON",
+      "comfyWorkflowNotApi": "Paste a ComfyUI “Export (API)” workflow (UI format is not supported)",
+      "comfyNegative": "Negative prompt",
+      "comfyNegativePlaceholder": "Optional; written into the negative CLIPTextEncode or the negative_prompt placeholder",
+      "comfyFps": "Frame rate (fps)",
+      "comfyFpsHint": "Used to turn shot duration into the frames placeholder (4n+1); default 16",
+      "comfyFpsInvalid": "Frame rate must be a number greater than 0"
     },
     "styleDialog": {
       "editTitle": "Edit Style Preset",

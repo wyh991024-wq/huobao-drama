@@ -161,7 +161,8 @@
                 <div class="config-main">
                   <div class="config-line">
                     <span class="config-name">{{ c.name || `${c.provider}-${c.service_type}` }}</span>
-                    <span :class="['tag', c.api_key ? 'tag-success' : 'tag-error']">{{ c.api_key ? t('settings.ai.hasKey') : t('settings.ai.noKey') }}</span>
+                    <span v-if="c.provider === 'comfyui'" class="tag tag-success">{{ t('settings.ai.localService') }}</span>
+                    <span v-else :class="['tag', c.api_key ? 'tag-success' : 'tag-error']">{{ c.api_key ? t('settings.ai.hasKey') : t('settings.ai.noKey') }}</span>
                     <span v-if="!c.is_active" class="tag">{{ t('settings.common.disabled') }}</span>
                   </div>
                   <div class="config-models">
@@ -517,8 +518,32 @@
             <input v-model.number="cfgForm.priority" class="input" type="number" min="0" max="999" />
             <span class="field-hint">{{ t('settings.cfg.priorityHint') }}</span>
           </label>
-          <label class="field"><span class="field-label">API Key</span><input v-model="cfgForm.api_key" class="input" type="password" placeholder="sk-..." /></label>
-          <label class="field"><span class="field-label">Base URL</span><input v-model="cfgForm.base_url" class="input" placeholder="https://..." /></label>
+          <label class="field"><span class="field-label">API Key<span v-if="isComfyForm" class="dim"> ({{ t('settings.cfg.optional') }})</span></span><input v-model="cfgForm.api_key" class="input" type="password" :placeholder="isComfyForm ? t('settings.cfg.comfyKeyPlaceholder') : 'sk-...'" /></label>
+          <label class="field"><span class="field-label">Base URL</span><input v-model="cfgForm.base_url" class="input" :placeholder="isComfyForm ? 'http://127.0.0.1:8188' : 'https://...'" /></label>
+          <template v-if="isComfyForm">
+            <div class="field">
+              <span class="field-label">{{ t('settings.cfg.comfyWorkflow') }}</span>
+              <textarea v-model="cfgForm.workflow" class="textarea mono comfy-workflow-input" rows="10" spellcheck="false" :placeholder="t('settings.cfg.comfyWorkflowPlaceholder')"></textarea>
+              <div class="comfy-workflow-tools">
+                <label class="btn btn-sm">
+                  {{ t('settings.cfg.comfyWorkflowFile') }}
+                  <input type="file" accept=".json,application/json" class="comfy-file-input" @change="onWorkflowFile" />
+                </label>
+                <span class="field-hint">{{ t('settings.cfg.comfyWorkflowHint') }}</span>
+              </div>
+              <span class="field-hint">{{ t('settings.cfg.comfyPlaceholders') }}</span>
+              <code class="comfy-placeholder-list">{{ comfyPlaceholderList }}</code>
+            </div>
+            <label class="field">
+              <span class="field-label">{{ t('settings.cfg.comfyNegative') }}</span>
+              <input v-model="cfgForm.negative_prompt" class="input" :placeholder="t('settings.cfg.comfyNegativePlaceholder')" />
+            </label>
+            <label class="field">
+              <span class="field-label">{{ t('settings.cfg.comfyFps') }}</span>
+              <input v-model="cfgForm.fps" class="input" type="number" min="1" max="120" placeholder="16" />
+              <span class="field-hint">{{ t('settings.cfg.comfyFpsHint') }}</span>
+            </label>
+          </template>
           <div class="field">
             <span class="field-label">{{ t('settings.cfg.models') }}</span>
             <div v-if="cfgForm.models.length" class="model-chips">
@@ -721,7 +746,31 @@ const huobaoSaving = ref(false)
 // 火宝节点选择：默认跟随界面语言（中文→国内 .cn，其他→国外 .com），一键配置与取 Key 链接共用
 const huobaoRegion = ref(locale.value?.startsWith('zh') ? 'cn' : 'com')
 const huobaoSiteUrl = computed(() => `https://api.firemux.${huobaoRegion.value}`)
-const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', models: [], service_type: 'text', priority: 0, temperature: '' })
+const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', models: [], service_type: 'text', priority: 0, temperature: '', workflow: '', negative_prompt: '', fps: '' })
+// ComfyUI 本地工作流：API Key 可空，工作流 JSON / 负向提示词 / fps 存到 settings
+const isComfyForm = computed(() => cfgForm.provider === 'comfyui')
+// 占位符列表不走 i18n：vue-i18n 会把花括号当成插值
+const comfyPlaceholderList = ['prompt', 'negative_prompt', 'image', 'first_frame', 'last_frame', 'image_1…image_9', 'video', 'audio', 'width', 'height', 'duration', 'fps', 'frames', 'seed', 'model', 'aspect_ratio', 'resolution']
+  .map(k => `{{${k}}}`).join('  ')
+function onWorkflowFile(e) {
+  const file = e.target?.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => { cfgForm.workflow = String(reader.result || '') }
+  reader.readAsText(file)
+  e.target.value = ''
+}
+/** 校验并组装 ComfyUI settings 补丁；返回 null 表示校验失败（已提示） */
+function buildComfySettings() {
+  let workflow
+  try { workflow = JSON.parse(cfgForm.workflow || '') } catch { toast.warning(t('settings.cfg.comfyWorkflowInvalid')); return null }
+  const isApiFormat = workflow && typeof workflow === 'object' && !Array.isArray(workflow)
+    && Object.values(workflow).some(n => n && typeof n === 'object' && typeof n.class_type === 'string')
+  if (!isApiFormat) { toast.warning(t('settings.cfg.comfyWorkflowNotApi')); return null }
+  const fps = cfgForm.fps === '' || cfgForm.fps === null ? null : Number(cfgForm.fps)
+  if (fps !== null && (!Number.isFinite(fps) || fps <= 0)) { toast.warning(t('settings.cfg.comfyFpsInvalid')); return null }
+  return { workflow, negativePrompt: cfgForm.negative_prompt.trim() || null, fps }
+}
 // 模型标签编辑器：首位即默认模型；输入框支持回车添加、逗号/换行批量粘贴
 const modelInput = ref('')
 function addModel() {
@@ -749,7 +798,7 @@ const serviceTypes = computed(() => [
   { type: 'image', label: t('common.serviceType.image') },
   { type: 'video', label: t('common.serviceType.video') },
 ])
-const providers = ['gemini', 'openai', 'volcengine', 'minimax', 'aliyun']
+const providers = ['gemini', 'openai', 'volcengine', 'minimax', 'aliyun', 'comfyui']
 const providerSelectOptions = computed(() => providers.map(p => ({ label: p, value: p })))
 const serviceMeta = computed(() => ({
   text: { label: t('common.serviceType.text'), desc: t('settings.ai.meta.text') },
@@ -769,6 +818,7 @@ const providerPresets = {
     aliyun: { label: '阿里云百炼 Wan 3.0', baseUrl: 'https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com', models: ['wan3.0-video', 'wan3.0-video-prime'] },
     volcengine: { label: 'Seedance 2.0 官方', baseUrl: 'https://ark.cn-beijing.volces.com', models: ['doubao-seedance-2-0-mini-260615', 'doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-260128'] },
     minimax: { label: 'MiniMax H3 官方', baseUrl: 'https://api.minimaxi.com', models: ['MiniMax-H3'] },
+    comfyui: { label: 'ComfyUI 本地工作流', baseUrl: 'http://127.0.0.1:8188', models: ['comfyui-workflow'] },
   },
 }
 const huobaoQuickConfigs = computed(() => {
@@ -860,7 +910,7 @@ async function applyHuobaoQuickConfig() {
 function startAddCfg(t) {
   cfgEditId.value = null
   cfgTestResult.value = null
-  Object.assign(cfgForm, { name: '', provider: '', api_key: '', base_url: '', models: [], service_type: t, priority: 0, temperature: '' })
+  Object.assign(cfgForm, { name: '', provider: '', api_key: '', base_url: '', models: [], service_type: t, priority: 0, temperature: '', workflow: '', negative_prompt: '', fps: '' })
   const firstPreset = presetsByType(t)[0]
   if (firstPreset) applyProviderPreset(t, firstPreset.provider)
   cfgDialog.value = true
@@ -877,6 +927,9 @@ function startEditCfg(c) {
     service_type: c.service_type,
     priority: c.priority ?? 0,
     temperature: c.temperature ?? '',
+    workflow: c.settings?.workflow ? JSON.stringify(c.settings.workflow, null, 2) : '',
+    negative_prompt: c.settings?.negativePrompt || '',
+    fps: c.settings?.fps ?? '',
   })
   cfgDialog.value = true
 }
@@ -918,9 +971,15 @@ async function saveCfg() {
   if (temperature !== null && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
     toast.warning(t('settings.cfg.tempInvalid')); return
   }
+  const extra = {}
+  if (isComfyForm.value) {
+    const settings = buildComfySettings()
+    if (!settings) return
+    extra.settings = settings
+  }
   try {
-    if (cfgEditId.value) await aiConfigAPI.update(cfgEditId.value, { name: cfgForm.name, provider: cfgForm.provider, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature })
-    else await aiConfigAPI.create({ service_type: cfgForm.service_type, provider: cfgForm.provider, name: cfgForm.name || `${cfgForm.provider}-${cfgForm.service_type}`, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature })
+    if (cfgEditId.value) await aiConfigAPI.update(cfgEditId.value, { name: cfgForm.name, provider: cfgForm.provider, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature, ...extra })
+    else await aiConfigAPI.create({ service_type: cfgForm.service_type, provider: cfgForm.provider, name: cfgForm.name || `${cfgForm.provider}-${cfgForm.service_type}`, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature, ...extra })
     cfgDialog.value = false; toast.success(t('common.saved')); loadCfgs()
   } catch (e) { toastError(e) }
 }
@@ -1761,6 +1820,12 @@ onBeforeUnmount(stopUsagePoll)
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field-label { font-size: 12px; font-weight: 550; color: var(--text-1); }
 .field-hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+/* ComfyUI 工作流编辑区 */
+.comfy-workflow-input { font-size: 11px; line-height: 1.45; white-space: pre; overflow: auto; resize: vertical; }
+.comfy-workflow-tools { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.comfy-workflow-tools .btn { cursor: pointer; }
+.comfy-file-input { display: none; }
+.comfy-placeholder-list { display: block; margin-top: 4px; padding: 6px 8px; font-size: 11px; line-height: 1.6; color: var(--text-2); background: var(--bg-2, rgba(127,127,127,.08)); border-radius: 6px; word-break: break-all; }
 .required { color: var(--error); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
