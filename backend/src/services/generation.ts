@@ -251,10 +251,16 @@ async function processTask(id: number, config: AIConfig) {
       const resolvedLastFrameUrl = await normalizeVideoReferenceUrl(params.lastFrameUrl)
       const resolvedReferenceImageUrls = await normalizeVideoReferenceUrls(params.referenceImageUrls)
       // 视频使用公网地址；短音色按厂商能力使用 data URL 或公网地址。
-      const resolvedReferenceVideoUrls = resolvePublicMediaUrls(params.referenceVideoUrls, 'video')
+      // ComfyUI 在本机/内网，适配器自己读取本地文件并上传到其 input 目录，不需要 PUBLIC_BASE_URL。
+      const localMedia = acceptsLocalMedia(config.provider)
+      const resolvedReferenceVideoUrls = localMedia
+        ? dedupeStrings(params.referenceVideoUrls)
+        : resolvePublicMediaUrls(params.referenceVideoUrls, 'video')
       const resolvedReferenceAudioUrls = await resolveReferenceAudioUrls(params.referenceAudioUrls, config.provider)
-      const resolvedReferenceFileUrl = resolvePublicMediaUrl(params.referenceFileUrl, 'file')
-      ;({ url, method, headers, body } = adapter.buildGenerateRequest(config, {
+      const resolvedReferenceFileUrl = localMedia
+        ? (String(params.referenceFileUrl || '').trim() || null)
+        : resolvePublicMediaUrl(params.referenceFileUrl, 'file')
+      const videoRecord = {
         id: record.id,
         model: record.model,
         prompt: record.prompt,
@@ -274,7 +280,11 @@ async function processTask(id: number, config: AIConfig) {
         seed: params.seed,
         promptExtend: params.promptExtend,
         watermark: params.watermark,
-      }))
+      }
+      // 需要先上传素材的厂商（ComfyUI）走异步构建，其余保持同步
+      ;({ url, method, headers, body } = adapter.prepareGenerateRequest
+        ? await adapter.prepareGenerateRequest(config, videoRecord)
+        : adapter.buildGenerateRequest(config, videoRecord))
     }
 
     logTaskProgress(label, 'request', {
@@ -337,7 +347,7 @@ async function processTask(id: number, config: AIConfig) {
     }
 
     const adapter = getVideoAdapter(config.provider)
-    const { isAsync, taskId, videoUrl, duration } = adapter.parseGenerateResponse(result)
+    const { isAsync, taskId, videoUrl, duration } = adapter.parseGenerateResponse(result, config)
     if (taskId) {
       await markPolling(id, taskId)
       record.taskId = taskId
@@ -411,7 +421,7 @@ async function pollTask(record: SysTaskRecord, config: AIConfig, taskId: string)
       const result = await resp.json() as any
 
       // 图片/视频 PollResponse 结构不同，这里统一按 any 取值后按 type 分支
-      const pollResp: any = adapter.parsePollResponse(result)
+      const pollResp: any = adapter.parsePollResponse(result, config)
       if (type === 'video' && pollResp.stage === 'transferring') {
         await db.update(schema.sysTask).set({ stage: 'transferring', updatedAt: now() }).where(eq(schema.sysTask.id, record.id))
       }
@@ -688,6 +698,16 @@ function resolvePublicMediaUrl(value: string | null | undefined, kind: 'video' |
     return `${base}${p}`
   }
   return raw
+}
+
+/** 能直接消费本地 static 路径 / data URL 的厂商（自行上传素材），无需公网地址 */
+function acceptsLocalMedia(provider: string): boolean {
+  return (provider || '').toLowerCase() === 'comfyui'
+}
+
+function dedupeStrings(refs: string[] | null | undefined): string[] {
+  if (!Array.isArray(refs) || !refs.length) return []
+  return Array.from(new Set(refs.map((item) => String(item || '').trim()).filter(Boolean)))
 }
 
 function resolvePublicMediaUrls(refs: string[] | null | undefined, kind: 'video' | 'audio'): string[] {

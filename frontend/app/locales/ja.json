@@ -311,7 +311,8 @@
         "text": "脚本リライト、キャラクター・シーン抽出、分镜分解などの Agent テキスト能力",
         "image": "キャラクター図、シーン図、ショット図などの静止画生成",
         "video": "ショット動画の直接生成（デフォルト Seedance 2.0）"
-      }
+      },
+      "localService": "ローカル"
     },
     "styles": {
       "title": "スタイルプリセット",
@@ -425,7 +426,21 @@
       "reachable": "エンドポイントが応答しました",
       "unreachable": "エンドポイントのテストに失敗しました",
       "providerRequired": "プロバイダーを選択してください",
-      "tempInvalid": "Temperature は 0〜2 の数値で入力してください"
+      "tempInvalid": "Temperature は 0〜2 の数値で入力してください",
+      "optional": "任意",
+      "comfyKeyPlaceholder": "ComfyUI は既定で認証不要。リバースプロキシで Bearer 認証を付けた場合のみ入力",
+      "comfyWorkflow": "ComfyUI ワークフロー（API 形式 JSON）",
+      "comfyWorkflowPlaceholder": "ComfyUI で開発者モードを有効にし、「Export (API)」で保存した JSON を貼り付け",
+      "comfyWorkflowFile": "ファイルから読み込む",
+      "comfyWorkflowHint": "エクスポートした .json を選択しても構いません",
+      "comfyPlaceholders": "ノード入力には下記のプレースホルダーを使えます。未使用の場合は CLIPTextEncode（正/負）、LoadImage（先頭フレーム→末尾フレーム→参照画像）、seed を自動設定します。",
+      "comfyWorkflowInvalid": "ワークフローが正しい JSON ではありません",
+      "comfyWorkflowNotApi": "ComfyUI の「Export (API)」形式を貼り付けてください（UI 形式は非対応）",
+      "comfyNegative": "ネガティブプロンプト",
+      "comfyNegativePlaceholder": "任意。負側の CLIPTextEncode または negative_prompt プレースホルダーに書き込まれます",
+      "comfyFps": "フレームレート (fps)",
+      "comfyFpsHint": "ショットの長さを frames プレースホルダー（4n+1）に換算するために使用。既定 16",
+      "comfyFpsInvalid": "フレームレートは 0 より大きい数値で入力してください"
     },
     "styleDialog": {
       "editTitle": "スタイルプリセットを編集",
