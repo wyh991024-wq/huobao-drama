@@ -127,3 +127,5 @@
 - 任务流程中的异步构建钩子：`backend/src/services/generation.ts`（`prepareGenerateRequest`）
 - 配置校验与 `settings` 读写：`backend/src/routes/aiConfigs.ts`
 - 设置页表单：`frontend/app/pages/settings.vue`
+
+仓库内提供了一份可直接导入的 API 工作流：`docs/workflows/minimax_h3_r2v_api.json`。它使用 `minimax_h3_ref2va_bf16`（约 66GB）、`qwen3vl_32b_minimax_h3_nvfp4_awq` 和 fp16 视频 VAE，默认 20 步，导入前请确认服务器上有这些文件。
