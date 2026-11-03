@@ -14,11 +14,14 @@ import { downloadFile, fetchImageAsCompressedDataUrl, generateImageThumb, readIm
 import { extractVideoPoster } from '../utils/video-poster.js'
 import { getImageAdapter, getVideoAdapter } from './adapters/registry'
 import type { AIConfig } from './adapters/types'
+import { joinProviderUrl } from './adapters/url'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
 
 type TaskType = 'image' | 'video'
 
 const activeTasks = new Set<number>()
+/** 用户取消的任务：轮询循环、完成回写、失败落库都会跳过它们 */
+const cancelledTasks = new Set<number>()
 const videoSubmissions = new Set<number>()
 function runBackground(id: number, job: () => Promise<void>) {
   if (activeTasks.has(id)) return
@@ -376,6 +379,7 @@ async function processTask(id: number, config: AIConfig) {
 }
 
 async function markPolling(id: number, taskId: string | undefined) {
+  if (cancelledTasks.has(id)) return
   await db.update(schema.sysTask)
     .set({ taskId, stage: 'polling', status: 'processing', updatedAt: now() })
     .where(eq(schema.sysTask.id, id))
@@ -383,6 +387,7 @@ async function markPolling(id: number, taskId: string | undefined) {
 }
 
 async function failTask(id: number, message: string, code?: string) {
+  if (cancelledTasks.has(id)) return
   message = safeTaskError(message)
   logTaskError('SysTask', 'failed', { id, error: message })
   await db.update(schema.sysTask)
@@ -400,6 +405,11 @@ async function pollTask(record: SysTaskRecord, config: AIConfig, taskId: string)
   const startedAt = Date.now()
 
   for (let i = 0; i < profile.attempts; i++) {
+    if (cancelledTasks.has(record.id)) {
+      await cancelUpstream(record.provider, taskId, config.baseUrl, config.apiKey).catch(() => undefined)
+      logTaskProgress(label, 'poll-stop-cancelled', { id: record.id, taskId })
+      return
+    }
     if (profile.maxDurationMs && Date.now() - startedAt >= profile.maxDurationMs) {
       await failTask(record.id, 'Timeout: Polling exceeded 10 minutes')
       return
@@ -475,6 +485,7 @@ async function pollTask(record: SysTaskRecord, config: AIConfig, taskId: string)
 }
 
 async function handleImageComplete(record: SysTaskRecord, imageUrl: string) {
+  if (cancelledTasks.has(record.id)) return
   const localPath = await downloadFile(imageUrl, 'images')
   // 列表页缩略图（前端按命名约定推导地址，失败不影响主流程）
   await generateImageThumb(localPath)
@@ -489,6 +500,7 @@ async function handleImageComplete(record: SysTaskRecord, imageUrl: string) {
 }
 
 async function handleImageCompleteBase64(record: SysTaskRecord, base64Data: string, mimeType: string) {
+  if (cancelledTasks.has(record.id)) return
   const localPath = await saveBase64Image(base64Data, mimeType, 'images')
   await generateImageThumb(localPath)
 
@@ -523,6 +535,7 @@ async function writeBackImageAssets(record: SysTaskRecord, localPath: string) {
 }
 
 async function handleVideoComplete(record: SysTaskRecord, videoUrl: string, duration: number | null | undefined) {
+  if (cancelledTasks.has(record.id)) return
   // 先落库地址与实际时长；后续下载失败仍可恢复，且不重新提交生成。
   const params = { ...parseTaskParams(record.params), resultDuration: duration }
   await db.update(schema.sysTask).set({ resultUrl: videoUrl, params: JSON.stringify(params),
@@ -569,6 +582,7 @@ export async function recoverVideoTask(id: number): Promise<void> {
   if (activeTasks.has(id) || record.status === 'completed') return
   if (!record.resultUrl && !record.taskId) throw new Error('未保存上游任务编号，请先核对上游记录，勿重复生成')
   if (record.errorCode === 'generation_failed') throw new Error('上游已确认生成失败，无法恢复原任务')
+  if (record.errorCode === 'cancelled') throw new Error('任务已取消，请重新生成')
   // 在任何异步配置读取前获取锁，重复点击不会启动多个下载。
   activeTasks.add(id)
   try {
@@ -727,4 +741,49 @@ function normalizeStoredVideoResolution(resolution: string | null | undefined): 
   if (value === '480p' || value === '720p' || value === '1080p') return value
   if (value === '2k') return '2K'
   return undefined
+}
+
+// ─── 取消任务 ───────────────────────────────────────────────
+
+export type CancelResult = { id: number; upstream: 'removed' | 'interrupted' | 'not_found' | 'unsupported' | 'error'; message?: string }
+
+/** ComfyUI：排队中的从队列删除，正在执行的中断；其他厂商没有取消接口 */
+async function cancelUpstream(provider: string | null | undefined, taskId: string | null | undefined, baseUrl: string | null | undefined, apiKey?: string | null): Promise<CancelResult['upstream']> {
+  if ((provider || '').toLowerCase() !== 'comfyui') return 'unsupported'
+  if (!taskId || !baseUrl) return 'not_found'
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+  const queueResp = await fetch(joinProviderUrl(baseUrl, '', '/queue'), { headers, signal: AbortSignal.timeout(15_000) })
+  const queue: any = queueResp.ok ? await queueResp.json() : {}
+  const has = (list: any) => Array.isArray(list) && list.some((item: any) => Array.isArray(item) && item[1] === taskId)
+  if (has(queue.queue_running)) {
+    await fetch(joinProviderUrl(baseUrl, '', '/interrupt'), { method: 'POST', headers, body: JSON.stringify({ prompt_id: taskId }), signal: AbortSignal.timeout(15_000) })
+    return 'interrupted'
+  }
+  if (has(queue.queue_pending)) {
+    await fetch(joinProviderUrl(baseUrl, '', '/queue'), { method: 'POST', headers, body: JSON.stringify({ delete: [taskId] }), signal: AbortSignal.timeout(15_000) })
+    return 'removed'
+  }
+  return 'not_found'
+}
+
+/** 取消一个生成中的任务：标记为已取消并尽量通知上游停止 */
+export async function cancelTask(id: number): Promise<CancelResult> {
+  const [record] = await db.select().from(schema.sysTask).where(eq(schema.sysTask.id, id))
+  if (!record) throw new Error('任务不存在')
+  if (record.status !== 'processing') throw new Error('任务已结束，无需取消')
+  cancelledTasks.add(id)
+  await db.update(schema.sysTask)
+    .set({ status: 'failed', errorCode: 'cancelled', errorMsg: '已取消', updatedAt: now() })
+    .where(eq(schema.sysTask.id, id))
+  let upstream: CancelResult['upstream'] = 'error'
+  let message: string | undefined
+  try {
+    const config = record.configId ? await getConfigById(record.configId) : null
+    upstream = await cancelUpstream(record.provider, record.taskId, record.configBaseUrl || config?.baseUrl, config?.apiKey)
+  } catch (err) {
+    message = safeTaskError(err)
+  }
+  logTaskWarn('SysTask', 'cancelled', { id, provider: record.provider, taskId: record.taskId, upstream })
+  return { id, upstream, message }
 }

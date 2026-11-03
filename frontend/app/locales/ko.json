@@ -828,7 +828,12 @@
       "sbN": "스토리보드 #{n}",
       "generic": "일반",
       "fullMerge": "화 전체 병합",
-      "mergeKind": "병합"
+      "mergeKind": "병합",
+      "cancel": "취소",
+      "cancelAll": "모두 취소 ({n})",
+      "cancelAllConfirm": "생성 중인 작업 {n}개를 취소할까요? ComfyUI 작업은 대기열에서 삭제되거나 중단됩니다. 클라우드 작업은 상위에서 중지할 수 없어 요금이 부과될 수 있습니다.",
+      "cancelledN": "작업 {n}개를 취소했습니다",
+      "cancelCloudWarn": "클라우드 작업 {n}개는 상위에서 중지할 수 없어 요금이 부과될 수 있습니다"
     },
     "export": {
       "notReadyDesc": "먼저 스토리보드와 제작 단계를 완료하세요",

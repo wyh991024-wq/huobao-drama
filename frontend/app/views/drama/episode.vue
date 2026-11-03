@@ -1012,6 +1012,10 @@
               <div class="video-task-meta">{{ t('episode.tasks.meta', { n: genTaskRows.length }) }}</div>
             </div>
             <div class="task-drawer-head-actions">
+              <button v-if="cancellableGenTasks.length" class="btn btn-sm btn-danger-ghost" :disabled="cancellingAll" @click="cancelAllGenTasks">
+                <Loader2 v-if="cancellingAll" :size="11" class="animate-spin" />
+                {{ t('episode.tasks.cancelAll', { n: cancellableGenTasks.length }) }}
+              </button>
               <button class="btn btn-sm" @click="loadGenTasks">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 {{ t('common.refresh') }}
@@ -1072,6 +1076,12 @@
                   </template>
                   <span class="video-task-sep">·</span>
                   <span>#{{ row.id }}</span>
+                  <button
+                    v-if="row.cancellable"
+                    class="btn btn-sm btn-danger-ghost gen-task-cancel"
+                    :disabled="cancellingIds.includes(row.id)"
+                    @click.stop="cancelGenTask(row)"
+                  >{{ t('episode.tasks.cancel') }}</button>
                 </div>
                 <div v-if="row.errorMsg" class="video-task-error" :title="row.errorMsg">
                   {{ mapError(row.errorMsg) }}
@@ -2276,6 +2286,45 @@ const videoModelMultiCfg = computed(() => hasMultiConfigs(videoModelOptions.valu
 
 // Production step helpers
 // ========== 任务列表面板 ==========
+const cancellingIds = ref([])
+const cancellingAll = ref(false)
+const cancellableGenTasks = computed(() => genTaskRows.value.filter(r => r.cancellable))
+function cancelResultToast(results) {
+  const cloud = results.filter(r => r.upstream === 'unsupported').length
+  const ok = results.filter(r => r.upstream !== 'error').length
+  toast.success(t('episode.tasks.cancelledN', { n: ok }))
+  if (cloud) toast.warning(t('episode.tasks.cancelCloudWarn', { n: cloud }))
+}
+async function cancelGenTask(row) {
+  if (cancellingIds.value.includes(row.id)) return
+  cancellingIds.value = [...cancellingIds.value, row.id]
+  try {
+    const res = await taskAPI.cancel(row.id)
+    cancelResultToast([res])
+    await loadGenTasks()
+    await refresh()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    cancellingIds.value = cancellingIds.value.filter(id => id !== row.id)
+  }
+}
+async function cancelAllGenTasks() {
+  const ids = cancellableGenTasks.value.map(r => r.id)
+  if (!ids.length || cancellingAll.value) return
+  if (!window.confirm(t('episode.tasks.cancelAllConfirm', { n: ids.length }))) return
+  cancellingAll.value = true
+  try {
+    const res = await taskAPI.cancelBatch(ids)
+    cancelResultToast(res?.results || [])
+    await loadGenTasks()
+    await refresh()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    cancellingAll.value = false
+  }
+}
 async function loadGenTasks() {
   if (!epId.value) return
   try {
@@ -2365,7 +2414,8 @@ const genTaskRows = computed(() => {
     status: t.status || 'processing',
     errorMsg: t.error_msg || '',
     storyboardId: t.storyboard_id,
-    recoverable: t.type === 'video' && t.error_code !== 'generation_failed' && !!(t.task_id || t.result_url),
+    recoverable: t.type === 'video' && t.error_code !== 'generation_failed' && t.error_code !== 'cancelled' && !!(t.task_id || t.result_url),
+    cancellable: (t.status || 'processing') === 'processing' && (t.type === 'image' || t.type === 'video'),
     previewUrl: t.local_path || t.result_url || '',
     prompt: t.prompt || '',
     createdAt: t.created_at || '',
@@ -6033,6 +6083,9 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 }
 
 /* 任务触发按钮(顶栏) */
+.gen-task-cancel { margin-left: auto; padding: 1px 8px; font-size: 11px; }
+.btn-danger-ghost { color: var(--error, #e5484d); border-color: color-mix(in srgb, var(--error, #e5484d) 40%, transparent); }
+.btn-danger-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--error, #e5484d) 12%, transparent); }
 .task-drawer-trigger {
   position: relative;
 }
