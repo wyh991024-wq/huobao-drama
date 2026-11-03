@@ -828,7 +828,12 @@
       "sbN": "分镜 #{n}",
       "generic": "通用",
       "fullMerge": "整集拼接",
-      "mergeKind": "合并"
+      "mergeKind": "合并",
+      "cancel": "取消",
+      "cancelAll": "全部取消 ({n})",
+      "cancelAllConfirm": "确定取消 {n} 个生成中的任务吗？ComfyUI 任务会从队列删除或中断；云端任务无法在上游停止，可能仍会计费。",
+      "cancelledN": "已取消 {n} 个任务",
+      "cancelCloudWarn": "{n} 个云端任务无法在上游停止，可能仍会计费"
     },
     "export": {
       "notReadyDesc": "请先完成分镜和制作流程",

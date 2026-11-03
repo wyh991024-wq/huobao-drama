@@ -828,7 +828,12 @@
       "sbN": "Shot #{n}",
       "generic": "General",
       "fullMerge": "Full-episode merge",
-      "mergeKind": "Merge"
+      "mergeKind": "Merge",
+      "cancel": "Cancel",
+      "cancelAll": "Cancel all ({n})",
+      "cancelAllConfirm": "Cancel {n} running tasks? ComfyUI tasks are removed from the queue or interrupted; cloud tasks cannot be stopped upstream and may still be billed.",
+      "cancelledN": "Cancelled {n} tasks",
+      "cancelCloudWarn": "{n} cloud tasks cannot be stopped upstream and may still be billed"
     },
     "export": {
       "notReadyDesc": "Please finish the storyboard and production steps first",

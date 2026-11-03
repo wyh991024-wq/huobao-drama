@@ -828,7 +828,12 @@
       "sbN": "分镜 #{n}",
       "generic": "汎用",
       "fullMerge": "話全体の結合",
-      "mergeKind": "結合"
+      "mergeKind": "結合",
+      "cancel": "キャンセル",
+      "cancelAll": "すべてキャンセル ({n})",
+      "cancelAllConfirm": "生成中の {n} 件のタスクをキャンセルしますか？ComfyUI のタスクはキューから削除または中断されます。クラウドのタスクは上流で停止できず、課金される場合があります。",
+      "cancelledN": "{n} 件のタスクをキャンセルしました",
+      "cancelCloudWarn": "クラウドのタスク {n} 件は上流で停止できず、課金される場合があります"
     },
     "export": {
       "notReadyDesc": "先に分镜と制作の工程を完了してください",

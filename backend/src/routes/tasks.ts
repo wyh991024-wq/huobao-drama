@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, created, badRequest } from '../utils/response.js'
-import { generateImage, generateVideo, recoverVideoTask } from '../services/generation.js'
+import { cancelTask, generateImage, generateVideo, recoverVideoTask } from '../services/generation.js'
 import { safeTaskError } from '../services/video-download.js'
 import { getActiveConfig, getConfigById } from '../services/ai.js'
 import { getDramaStylePrompt } from '../services/style-preset.js'
@@ -10,6 +10,25 @@ import { resolveStoryboardVoiceReferences } from '../services/character-voice-re
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 
 const app = new Hono()
+
+// POST /tasks/:id/cancel — 取消单个生成中的任务
+app.post('/:id/cancel', async c => {
+  try {
+    return success(c, await cancelTask(Number(c.req.param('id'))))
+  } catch (error) { return badRequest(c, safeTaskError(error)) }
+})
+
+// POST /tasks/cancel-batch { ids } — 批量取消（全部取消）
+app.post('/cancel-batch', async c => {
+  const body = await c.req.json().catch(() => ({}))
+  const ids = Array.isArray(body?.ids) ? body.ids.map(Number).filter((n: number) => Number.isFinite(n)) : []
+  if (!ids.length) return badRequest(c, '需要 ids')
+  const results = []
+  for (const id of ids) {
+    try { results.push(await cancelTask(id)) } catch (error) { results.push({ id, upstream: 'error', message: safeTaskError(error) }) }
+  }
+  return success(c, { results })
+})
 
 app.post('/:id/recover', async c => {
   try {
