@@ -84,6 +84,7 @@ N/A
 - **detailed_description**：
   - 第一句写画面风格和光线（取自 atmosphere），然后是 `[Shot 1]`。单镜头分镜只有 `[Shot 1]`，不写时间戳，不切镜。
   - 按播放顺序写清构图和景别、Subject 的位置和外观、环境与光线、动作和状态变化、运镜、此刻的声音。动作要在 duration 内做得完。
+  - 每个动作都写明终点：物体最后停在哪里、是否离开画面、人物最后的姿势和表情。例如不要只写 `slowly lowers the fan`，要写 `slowly lowers the fan all the way down to her lap, fully revealing her face`。
   - 正文控制在 150-300 个英文单词，信息量大的镜头可以更长，但不要写成剧情梗概。
   - 说话的角色写 `<Subject N> (S1)`，按发声顺序编号 S1、S2，同一个人全程用同一个编号。台词写成 `<d>[Chinese] 台词。</d>`，台词保持中文原文，结尾用句号、问号或感叹号。台词只取自 description，不新增。
   - 不说话的角色写明 `keeps its mouth closed`。
