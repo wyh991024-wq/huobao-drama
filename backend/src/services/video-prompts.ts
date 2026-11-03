@@ -73,7 +73,7 @@ export async function startVideoPromptBatch(
         await agent.generate([{
           role: 'user',
           content: `请为分镜 #${sb.storyboardNumber}(ID:${sb.id})生成视频提示词(video_prompt)。视频模型:${videoLabel},请根据该模型的特性和时长限制生成。
-请先调用 read_storyboard_context 获取该分镜的画面描述(含【镜头N】子镜头与台词/旁白)、氛围及时长，据此生成 video_prompt(第一行是信息头：列出该分镜出场的人物与场景，用 @角色名/@场景名 引用；第二行起用连贯的一段话写完这一个连续镜头，不分时间段、不切镜，用 @角色名/@场景名/@道具名 引用参考素材),然后调用 update_storyboard 保存到分镜 ID:${sb.id}。update_storyboard 参数只传 storyboard_id 和 video_prompt 两个键,不要回传该分镜的其他任何字段,不要重新拆分整集。`,
+请先调用 read_storyboard_context 获取该分镜的画面描述(含【镜头N】子镜头与台词/旁白)、氛围及时长，据此生成 video_prompt(严格按 video-prompt 技能规范：视频模型名包含 H3 时用 MiniMax H3 六段式英文结构，其他模型用中文信息头加连贯单段；一个分镜只写一个连续镜头，不切镜，用 @角色名/@场景名/@道具名 引用参考素材),然后调用 update_storyboard 保存到分镜 ID:${sb.id}。update_storyboard 参数只传 storyboard_id 和 video_prompt 两个键,不要回传该分镜的其他任何字段,不要重新拆分整集。`,
         }], { maxSteps: 8, requestContext })
         // 以实际落库为准判定成败
         const [fresh] = await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, sb.id))

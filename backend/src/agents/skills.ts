@@ -39,7 +39,8 @@ try {
 const AGENT_SKILL_MAP: Record<string, string[]> = {
   script_rewriter: ['script-rewriter'],
   extractor: ['extractor'],
-  storyboard_breaker: ['storyboard-breaker'],
+  // 分镜拆解同步产出 video_prompt，需要同一份视频提示词规范
+  storyboard_breaker: ['storyboard-breaker', 'prompt-generator/video-prompt'],
   prompt_generator: [
     'prompt-generator/character-prompt',
     'prompt-generator/scene-prompt',

@@ -5,13 +5,21 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import { db, schema } from '../../db/index.js'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { now } from '../../utils/response.js'
 import { getEpisodeId } from '../context.js'
 
+/** 项目已有角色设定：改写/扩写时必须沿用，避免把已建立的人物写走样 */
+async function projectCharacters(dramaId: number | null | undefined) {
+  if (!dramaId) return []
+  const rows = await db.select().from(schema.characters)
+    .where(and(eq(schema.characters.dramaId, dramaId), isNull(schema.characters.deletedAt)))
+  return rows.map(c => ({ name: c.name, role: c.role, description: c.description, appearance: c.appearance }))
+}
+
 const readEpisodeScript = createTool({
   id: 'read_episode_script',
-  description: 'Read the script content of the current episode.',
+  description: 'Read the script content of the current episode, plus the project\'s existing characters that must be kept consistent.',
   inputSchema: z.object({}),
   execute: async (_input, context) => {
     const episodeId = getEpisodeId(context?.requestContext)
@@ -21,7 +29,16 @@ const readEpisodeScript = createTool({
     if (!ep) return { error: `Episode not found (id=${episodeId})` }
     const content = ep.content || ep.scriptContent
     if (!content) return { error: `Episode has no content (id=${episodeId})` }
-    return { content, word_count: content.length, episode_id: episodeId }
+    const characters = await projectCharacters(ep.dramaId)
+    return {
+      content,
+      word_count: content.length,
+      episode_id: episodeId,
+      ...(characters.length ? {
+        existing_characters: characters,
+        character_rule: '项目已有以上角色。原始内容提到这些名字时，必须沿用其性别、物种、外貌、性格和说话方式（不说话的角色不能写出台词），不得改设定。',
+      } : {}),
+    }
   },
 })
 

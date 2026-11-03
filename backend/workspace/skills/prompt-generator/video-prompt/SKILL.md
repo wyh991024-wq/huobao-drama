@@ -1,13 +1,17 @@
 ---
 name: video-prompt
-description: 视频提示词规范 — 为 3-5 秒的单镜头分镜生成连贯的视频生成提示词
+description: 视频提示词规范 — 为 3-5 秒的单镜头分镜生成视频提示词；MiniMax H3 使用官方六段式英文结构，其他模型使用中文单段格式
 ---
 
 # 视频提示词（单镜头分镜 → video_prompt）
 
 根据分镜的 description / atmosphere / duration 生成 `video_prompt`。**一个分镜 = 一个 3-5 秒的连续镜头，内部不切镜、不跨场景、不闪回。**
 
-## 格式
+## 先判断视频模型
+
+用户消息会告知本次视频模型。模型名包含 `H3`（不区分大小写，如 MiniMax-H3、MiniMax-H3-quality、ComfyUI · MiniMax H3）时，**必须**使用文末的「MiniMax H3 格式」；其他模型或未告知时，使用下面的通用格式。
+
+## 通用格式
 
 第一行是信息头，第二行起用连贯的一段话写完整个镜头。不写时间分段。
 
@@ -41,6 +45,59 @@ description: 视频提示词规范 — 为 3-5 秒的单镜头分镜生成连贯
 - 抽象心理描写、文学化比喻
 - 要求画面生成文字
 - 语言与会话语言指令不符
+
+## MiniMax H3 格式（视频模型名包含 H3 时必须使用）
+
+MiniMax H3 官方要求参考生视频提示词使用固定的六段英文结构，按下面的顺序写，每段以字段名加冒号单独起一行：
+
+```
+subject_definitions:
+<Subject 1> is the young woman shown in @乔一, with a short black bob, large dark eyes, a beige hoodie and blue jeans.
+<Subject 2> is the round brown capybara shown in @稳稳, with short brown fur, sleepy half-closed eyes and a small orange balanced on its head.
+<Subject 3> is the small bathroom shown in @出租屋浴室, with beige tiles, a white bathtub full of warm water and a rain-streaked window.
+
+summary:
+[reference generation] In <Subject 3>, <Subject 1> stands at the bathtub and laughs at <Subject 2>, then accepts it as her roommate.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - face, short bob hairstyle, beige hoodie and jeans are retained.
+<Subject 2> (appears in [Shot 1]): fully_preserved - round body, brown fur, sleepy eyes and the orange on its head are retained.
+<Subject 3> (appears in [Shot 1]): fully_preserved - beige tiles, white bathtub and rain-streaked window are retained.
+
+detailed_description:
+A warm, soft-lit 3D animated look with gentle steam in the air.
+[Shot 1] A static close-up frames <Subject 1> (S1) from the chest up at the bathroom doorway of <Subject 3>, the white bathtub blurred behind her. She looks down at <Subject 2> resting in the warm water, her tense shoulders slowly dropping. She lets out a short laugh, shakes her head, and says in a light, resigned voice, <d>[Chinese] 行吧，室友。</d> She then closes her lips into a small smile. <Subject 2> keeps its mouth closed and blinks slowly. Rain taps on the window and steam drifts across the frame. No subtitles, captions, or on-screen text appear.
+
+overall_soundscape:
+Steady rain against the window, soft dripping water and quiet bathroom room tone throughout.
+
+non_diegetic_music:
+N/A
+```
+
+### 各段写法
+
+- **subject_definitions**：每个已绑定的角色、场景、道具各占一行，编号 `<Subject 1>`、`<Subject 2>` 依次递增。参考图只在这里用 `@名字` 引用一次，系统会把它换成对应的参考图标签。写清外貌、服装、标志性特征，和参考图一致。
+- **音色参考**：分镜绑定了角色音色时，追加一行 `#角色名 is the voice-timbre reference for <Subject N> (S1).`，`#角色名` 必须与角色列表一致。
+- **summary**：以 `[reference generation]` 开头，用一句英文说清谁在哪里做什么。只能使用已经定义的 `<Subject N>`。
+- **retention_analysis**：每个 Subject 一行，格式为 `<Subject N> (appears in [Shot 1]): fully_preserved - 保留了哪些特征`。
+- **detailed_description**：
+  - 第一句写画面风格和光线（取自 atmosphere），然后是 `[Shot 1]`。单镜头分镜只有 `[Shot 1]`，不写时间戳，不切镜。
+  - 按播放顺序写清构图和景别、Subject 的位置和外观、环境与光线、动作和状态变化、运镜、此刻的声音。动作要在 duration 内做得完。
+  - 正文控制在 150-300 个英文单词，信息量大的镜头可以更长，但不要写成剧情梗概。
+  - 说话的角色写 `<Subject N> (S1)`，按发声顺序编号 S1、S2，同一个人全程用同一个编号。台词写成 `<d>[Chinese] 台词。</d>`，台词保持中文原文，结尾用句号、问号或感叹号。台词只取自 description，不新增。
+  - 不说话的角色写明 `keeps its mouth closed`。
+  - 最后一句固定写 `No subtitles, captions, or on-screen text appear.`
+- **overall_soundscape**：一句英文概括环境音和物理声音，台词不要写在这里。
+- **non_diegetic_music**：短剧配乐由后期添加，固定写 `N/A`。
+
+### H3 格式的硬约束
+
+- 除了 `<d>` 里的台词、画面中真实可见的文字，其余全部用英文。
+- `<Subject N>` 一旦分配就保持含义不变，不要出现未定义的标签。
+- 不要写 `@图片1`、`<Picture 1>` 这类标签，只写 `@名字`，系统会自动转换。
+- 项目的画风前缀由系统自动插入 detailed_description 开头，不要自行写画风关键词堆砌。
+- 结构参考 MiniMax 官方 h3-prompt-writing 规范（github.com/MiniMax-AI/MiniMax-H3），本节为火宝项目的改写版。
 
 ## 保存
 

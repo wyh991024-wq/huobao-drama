@@ -189,7 +189,12 @@ app.post('/', async (c) => {
     if (type === 'video' && String(videoPrompt || '').trim()) {
       const dramaId = body.drama_id ?? storyboardDramaId ?? null
       const stylePrompt = await getDramaStylePrompt(dramaId)
-      if (stylePrompt) videoPrompt = `${stylePrompt}，\n${videoPrompt}`
+      if (stylePrompt) {
+        // MiniMax H3 六段式提示词：画风写进 detailed_description 开头，前置会破坏官方结构
+        videoPrompt = /^\s*detailed_description:\s*$/m.test(videoPrompt)
+          ? videoPrompt.replace(/^(\s*detailed_description:\s*)$/m, `$1\nVisual style: ${stylePrompt.replace(/[，,\s]+$/, '')}.`)
+          : `${stylePrompt}，\n${videoPrompt}`
+      }
     }
 
     const id = type === 'image'
