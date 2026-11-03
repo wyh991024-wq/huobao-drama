@@ -32,6 +32,15 @@ description: 视频提示词规范 — 为 3-5 秒的单镜头分镜生成视频
 - **无台词时**写环境音和动作音，让音频有内容
 - **固定结尾句**：「画面无字幕、无文字、无水印。」花字和字幕由后期添加
 
+## 第一视角（主观镜头）
+
+description 写的是主观镜头（「我看见」「我低头」或镜头行标注主观、第一视角、POV）时：
+
+- **通用格式**：开头写「第一人称主观视角近景，镜头即持镜人的眼睛」，只写持镜人进入画面的手、袖口、戒指，写明「全程看不到持镜人的脸」；其他角色写「直视镜头」「对着镜头说」。
+- **H3 格式**：detailed_description 的 `[Shot 1]` 以 `A first-person point-of-view close-up through the eyes of the unseen protagonist` 开头，写明 `the camera is her eyes; her face is never shown`，持镜人的手写成 `only her hands, in a beige knit sleeve with a thin gold wedding ring, enter from the bottom edge of the frame`。其他 Subject 写 `looks directly into the camera`。
+- **持镜人不定义为 Subject**：她没有参考图，不要写进 subject_definitions，也不要 @ 她；她的画外台词写成 `the unseen protagonist (S1) says off-screen, <d>[Chinese] 台词。</d>`。
+- 运镜保持固定或轻微缓推，模拟人的视线，不写环绕、大幅摇移。
+
 ## 引用规则
 
 - `@场景名`、`@角色名`、`@道具名` 必须与列表中的名字完全一致，不缩写、不加符号
