@@ -45,9 +45,12 @@ export async function saveUploadedFile(data: ArrayBuffer, subDir: string, origin
 
 function getExtFromUrl(url: string): string {
   try {
-    const pathname = new URL(url).pathname
-    const ext = path.extname(pathname)
+    const parsed = new URL(url)
+    const ext = path.extname(parsed.pathname)
     if (ext && ext.length <= 5) return ext
+    // ComfyUI /view?filename=xxx.png
+    const fromQuery = path.extname(parsed.searchParams.get('filename') || '')
+    if (fromQuery && fromQuery.length <= 5) return fromQuery
   } catch {}
   return '.bin'
 }

@@ -12,6 +12,9 @@ export interface ImageProviderAdapter {
    */
   buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest
 
+  /** 可选的异步构建：需要先上传素材的厂商（如 ComfyUI）实现，generation.ts 优先调用 */
+  prepareGenerateRequest?(config: AIConfig, record: ImageGenerationRecord): Promise<ProviderRequest>
+
   /**
    * 解析生成响应，判断是同步还是异步
    */
@@ -33,7 +36,7 @@ export interface ImageProviderAdapter {
    * 从响应中提取图片 URL（用于直接下载）
    * 返回 null 表示图片数据是 base64 格式，需要用 extractImageBase64 处理
    */
-  extractImageUrl(result: any): string | null
+  extractImageUrl(result: any, config?: AIConfig): string | null
 
   /**
    * 从响应中提取 base64 图片数据
