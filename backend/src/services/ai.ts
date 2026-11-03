@@ -44,7 +44,7 @@ export function parseConfigTemperature(settingsRaw: string | null | undefined): 
 
 export const officialProviders: Record<ServiceType, readonly string[]> = {
   text: ['openai', 'gemini', 'volcengine'],
-  image: ['openai', 'gemini', 'volcengine'],
+  image: ['openai', 'gemini', 'volcengine', 'comfyui'],
   // comfyui：本地/内网 ComfyUI 工作流（API 格式 JSON 存在 settings.workflow）
   video: ['volcengine', 'minimax', 'aliyun', 'comfyui'],
 }

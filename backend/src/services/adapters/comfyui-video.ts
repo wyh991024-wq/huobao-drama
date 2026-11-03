@@ -42,9 +42,9 @@ import type {
 import { joinProviderUrl } from './url'
 import { getAbsolutePath, parseDataUrl } from '../../utils/storage.js'
 
-type WorkflowNode = { class_type?: string; inputs?: Record<string, any>; _meta?: { title?: string } }
-type Workflow = Record<string, WorkflowNode>
-type MediaKind = 'image' | 'video' | 'audio'
+export type WorkflowNode = { class_type?: string; inputs?: Record<string, any>; _meta?: { title?: string } }
+export type Workflow = Record<string, WorkflowNode>
+export type MediaKind = 'image' | 'video' | 'audio'
 
 interface ComfySettings {
   workflow?: Workflow | string
@@ -376,7 +376,7 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
 
   // ─── 内部工具 ──────────────────────────────────────────────
 
-  private settingsOf(config: AIConfig): ComfySettings {
+  settingsOf(config: AIConfig): ComfySettings {
     const s = config.settings
     if (!s) return {}
     if (typeof s === 'string') {
@@ -385,13 +385,13 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
     return s as ComfySettings
   }
 
-  private loadWorkflow(settings: ComfySettings): Workflow {
+  loadWorkflow(settings: ComfySettings): Workflow {
     let wf: any = settings.workflow
     if (typeof wf === 'string') {
       try { wf = JSON.parse(wf) } catch { throw new Error('ComfyUI 工作流不是合法 JSON，请在设置页重新粘贴「导出 (API)」格式的工作流') }
     }
     if (!wf || typeof wf !== 'object' || Array.isArray(wf)) {
-      throw new Error('未配置 ComfyUI 工作流：请在「设置 → 视频服务」的 ComfyUI 配置中粘贴 API 格式工作流 JSON')
+      throw new Error('未配置 ComfyUI 工作流：请在「设置」对应服务的 ComfyUI 配置中粘贴 API 格式工作流 JSON')
     }
     const hasNode = Object.values(wf).some((n: any) => n && typeof n === 'object' && typeof n.class_type === 'string')
     if (!hasNode) {
@@ -402,7 +402,7 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
     return JSON.parse(JSON.stringify(wf)) as Workflow
   }
 
-  private authHeaders(config: AIConfig, settings: ComfySettings): Record<string, string> {
+  authHeaders(config: AIConfig, settings: ComfySettings): Record<string, string> {
     const headers: Record<string, string> = {}
     if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`
     if (settings.headers && typeof settings.headers === 'object') {
@@ -412,7 +412,7 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
   }
 
   /** 把 data URL / 本地 static 路径 / 远程 URL 上传到 ComfyUI input 目录，返回 LoadImage 可用的文件名 */
-  private async uploadMedia(config: AIConfig, settings: ComfySettings, value: string, kind: MediaKind): Promise<string> {
+  async uploadMedia(config: AIConfig, settings: ComfySettings, value: string, kind: MediaKind): Promise<string> {
     const { bytes, ext } = await readMedia(value, kind)
     const name = `huobao-${createHash('sha1').update(bytes).digest('hex').slice(0, 16)}${ext}`
     const subfolder = settings.uploadSubfolder ?? 'huobao'
@@ -468,7 +468,7 @@ function defaultExt(kind: MediaKind) {
   return kind === 'image' ? '.png' : kind === 'video' ? '.mp4' : '.wav'
 }
 
-function collectPlaceholders(workflow: Workflow): Set<string> {
+export function collectPlaceholders(workflow: Workflow): Set<string> {
   const used = new Set<string>()
   for (const node of Object.values(workflow)) {
     for (const value of Object.values(node.inputs || {})) {
@@ -479,7 +479,7 @@ function collectPlaceholders(workflow: Workflow): Set<string> {
   return used
 }
 
-function substitutePlaceholders(workflow: Workflow, vars: Record<string, string | number>) {
+export function substitutePlaceholders(workflow: Workflow, vars: Record<string, string | number>) {
   for (const node of Object.values(workflow)) {
     if (!node.inputs) continue
     for (const [key, value] of Object.entries(node.inputs)) {
@@ -495,7 +495,7 @@ function substitutePlaceholders(workflow: Workflow, vars: Record<string, string 
 }
 
 /** 正/负向 CLIPTextEncode：优先按采样器 positive/negative 连线反查，其次按标题判断 */
-function findTextEncodeNodes(workflow: Workflow): { positive?: string; negative?: string } {
+export function findTextEncodeNodes(workflow: Workflow): { positive?: string; negative?: string } {
   const isText = (id?: string) => !!id && /TextEncode/i.test(workflow[id]?.class_type || '') && typeof workflow[id]?.inputs?.text === 'string'
   const linkTarget = (v: any) => (Array.isArray(v) && typeof v[0] !== 'undefined' ? String(v[0]) : undefined)
   let positive: string | undefined
@@ -515,25 +515,25 @@ function findTextEncodeNodes(workflow: Workflow): { positive?: string; negative?
   return { positive, negative }
 }
 
-function findLoaderNodes(workflow: Workflow, kind: MediaKind): string[] {
+export function findLoaderNodes(workflow: Workflow, kind: MediaKind): string[] {
   const classRe = kind === 'image' ? /LoadImage(?!Mask)/ : kind === 'video' ? /LoadVideo/i : /LoadAudio/i
   return Object.keys(workflow)
     .filter((id) => classRe.test(workflow[id].class_type || '') && typeof workflow[id].inputs?.[kind] === 'string')
     .sort((a, b) => Number(a) - Number(b))
 }
 
-/** 按实际素材数重建 Autogrow 输入（如 ref_images.ref_image_0…），每个素材一个新的加载节点 */
-function wireAutogrow(workflow: Workflow, nodeId: string, prefix: string, loader: string, field: string, names: string[]) {
+/** 按实际素材数重建 Autogrow 输入（如 ref_images.ref_image_0…），每个素材一个新的加载节点；start 为第一个编号（Qwen-Image 2.1 从 1 开始） */
+export function wireAutogrow(workflow: Workflow, nodeId: string, prefix: string, loader: string, field: string, names: string[], start = 0) {
   const inputs = workflow[nodeId].inputs!
   for (const key of Object.keys(inputs)) if (key.startsWith(prefix)) delete inputs[key]
   names.forEach((name, i) => {
     const loaderId = `huobao_${nodeId}_${field}_${i}`.replace(/:/g, '_')
     workflow[loaderId] = { class_type: loader, inputs: { [field]: name } }
-    inputs[`${prefix}${i}`] = [loaderId, 0]
+    inputs[`${prefix}${i + start}`] = [loaderId, 0]
   })
 }
 
-function wireOptionalImage(workflow: Workflow, nodeId: string, key: string, name: string) {
+export function wireOptionalImage(workflow: Workflow, nodeId: string, key: string, name: string) {
   const inputs = workflow[nodeId].inputs!
   delete inputs[key]
   if (!name) return
@@ -542,7 +542,7 @@ function wireOptionalImage(workflow: Workflow, nodeId: string, key: string, name
   inputs[key] = [loaderId, 0]
 }
 
-function describeExecutionError(messages: any): string {
+export function describeExecutionError(messages: any): string {
   if (!Array.isArray(messages)) return 'ComfyUI 执行失败'
   for (const entry of messages) {
     if (!Array.isArray(entry) || entry[0] !== 'execution_error') continue

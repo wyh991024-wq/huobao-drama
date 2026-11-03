@@ -538,7 +538,7 @@
               <span class="field-label">{{ t('settings.cfg.comfyNegative') }}</span>
               <input v-model="cfgForm.negative_prompt" class="input" :placeholder="t('settings.cfg.comfyNegativePlaceholder')" />
             </label>
-            <label class="field">
+            <label v-if="cfgForm.service_type === 'video'" class="field">
               <span class="field-label">{{ t('settings.cfg.comfyFps') }}</span>
               <input v-model="cfgForm.fps" class="input" type="number" min="1" max="120" placeholder="16" />
               <span class="field-hint">{{ t('settings.cfg.comfyFpsHint') }}</span>
@@ -769,7 +769,7 @@ function buildComfySettings() {
   if (!isApiFormat) { toast.warning(t('settings.cfg.comfyWorkflowNotApi')); return null }
   const fps = cfgForm.fps === '' || cfgForm.fps === null ? null : Number(cfgForm.fps)
   if (fps !== null && (!Number.isFinite(fps) || fps <= 0)) { toast.warning(t('settings.cfg.comfyFpsInvalid')); return null }
-  return { workflow, negativePrompt: cfgForm.negative_prompt.trim() || null, fps }
+  return { workflow, negativePrompt: cfgForm.negative_prompt.trim() || null, fps: cfgForm.service_type === 'video' ? fps : null }
 }
 // 模型标签编辑器：首位即默认模型；输入框支持回车添加、逗号/换行批量粘贴
 const modelInput = ref('')
@@ -813,6 +813,7 @@ const providerPresets = {
   image: {
     gemini: { label: 'Gemini 官方', baseUrl: 'https://generativelanguage.googleapis.com', models: ['gemini-3-pro-image', 'gemini-3.1-flash-image'] },
     openai: { label: 'OpenAI 官方', baseUrl: 'https://api.openai.com', models: ['gpt-image-2'] },
+    comfyui: { label: 'ComfyUI 本地工作流', baseUrl: 'http://127.0.0.1:18188', models: ['qwen-image-2.1-turbo'] },
   },
   video: {
     aliyun: { label: '阿里云百炼 Wan 3.0', baseUrl: 'https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com', models: ['wan3.0-video', 'wan3.0-video-prime'] },

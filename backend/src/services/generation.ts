@@ -235,15 +235,21 @@ async function processTask(id: number, config: AIConfig) {
 
     if (type === 'image') {
       const adapter = getImageAdapter(config.provider)
-      const resolvedReferenceImages = await normalizeReferenceImages(params.referenceImages)
-      ;({ url, method, headers, body } = adapter.buildGenerateRequest(config, {
+      // ComfyUI 自己上传原图，不走 768px 压缩
+      const resolvedReferenceImages = acceptsLocalMedia(config.provider)
+        ? dedupeStrings(params.referenceImages)
+        : await normalizeReferenceImages(params.referenceImages)
+      const imageRecord = {
         id: record.id,
         model: record.model,
         prompt: record.prompt,
         size: params.size,
         frameType: params.frameType,
         referenceImages: resolvedReferenceImages.length ? JSON.stringify(resolvedReferenceImages) : null,
-      }))
+      }
+      ;({ url, method, headers, body } = adapter.prepareGenerateRequest
+        ? await adapter.prepareGenerateRequest(config, imageRecord)
+        : adapter.buildGenerateRequest(config, imageRecord))
     } else {
       const adapter = getVideoAdapter(config.provider)
       const resolvedImageUrl = await normalizeVideoReferenceUrl(params.imageUrl)
@@ -322,7 +328,7 @@ async function processTask(id: number, config: AIConfig) {
 
     if (type === 'image') {
       const adapter = getImageAdapter(config.provider)
-      const { isAsync, taskId, imageUrl } = adapter.parseGenerateResponse(result)
+      const { isAsync, taskId, imageUrl } = adapter.parseGenerateResponse(result, config)
 
       if (!isAsync && imageUrl) {
         logTaskProgress(label, 'sync-complete', { id, imageUrl })

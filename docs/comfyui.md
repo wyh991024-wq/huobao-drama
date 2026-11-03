@@ -129,3 +129,15 @@
 - 设置页表单：`frontend/app/pages/settings.vue`
 
 仓库内提供了一份可直接导入的 API 工作流：`docs/workflows/minimax_h3_r2v_api.json`。它使用 `minimax_h3_ref2va_bf16`（约 66GB）、`qwen3vl_32b_minimax_h3_nvfp4_awq` 和 fp16 视频 VAE，默认 20 步，导入前请确认服务器上有这些文件。
+
+## 图片生成（角色、场景、道具、分镜帧）
+
+设置 → AI 服务 → 图片 → 添加，选「ComfyUI 本地工作流」，导入 `docs/workflows/qwen_image_2_1_turbo_api.json`。这个工作流使用 Qwen-Image 2.1 Turbo（int8）、8 步，同一个工作流既能文生图，也能带参考图生图：
+
+- 提示词和反向提示词自动写入 `TextEncodeQwenImage21`。
+- 参考图按实际数量连接到 `images.image_1`、`images.image_2`……，原图直接上传，不做压缩。
+- `EmptyLatentImage` 的宽高按火宝请求的尺寸写入（16 的倍数）。
+
+Qwen-Image Edit 系列工作流（`TextEncodeQwenImageEditPlus`）也会自动识别，参考图依次接到 image1 到 image3。其他工作流按通用规则填充 CLIPTextEncode 和 LoadImage。
+
+RTX 4090 实测：1920x1088 文生图约 64 秒，带两张参考图的 1344x768 图生图约 72 秒，包含首次加载模型的时间。生图和 H3 视频共用显卡，交替运行时会重新加载模型。
