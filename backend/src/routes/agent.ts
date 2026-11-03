@@ -2,6 +2,7 @@
  * Agent 聊天路由 — 非流式版本
  */
 import { Hono } from 'hono'
+import { TRANSIENT_ERROR } from '../services/extraction.js'
 import { validAgentTypes } from '../agents/index.js'
 import { buildAgentRequestContext } from '../agents/context.js'
 import { mastra } from '../mastra/index.js'
@@ -66,10 +67,17 @@ app.post('/:type/chat', async (c) => {
   const startTime = performance.now()
 
   try {
-    const result = await agent.generate(
-      [{ role: 'user', content: message }],
-      { maxSteps: 20, requestContext },
-    )
+    // 中转站偶发「The request could not be processed」等临时错误：重试一次（保存类工具都是覆盖或去重写入）
+    const run = () => agent.generate([{ role: 'user', content: message }], { maxSteps: 20, requestContext })
+    let result
+    try {
+      result = await run()
+    } catch (err: any) {
+      if (!TRANSIENT_ERROR.test(err?.message || '')) throw err
+      logTaskError('Agent', `${agentType}-retry`, { error: err?.message })
+      await new Promise((r) => setTimeout(r, 3000))
+      result = await run()
+    }
 
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
     logTaskSuccess('Agent', agentType, { elapsedSeconds: elapsed })
