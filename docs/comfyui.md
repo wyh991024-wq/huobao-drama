@@ -141,3 +141,19 @@
 Qwen-Image Edit 系列工作流（`TextEncodeQwenImageEditPlus`）也会自动识别，参考图依次接到 image1 到 image3。其他工作流按通用规则填充 CLIPTextEncode 和 LoadImage。
 
 RTX 4090 实测：1920x1088 文生图约 64 秒，带两张参考图的 1344x768 图生图约 72 秒，包含首次加载模型的时间。生图和 H3 视频共用显卡，交替运行时会重新加载模型。
+
+## 提速：INT8 注意力与稀疏注意力（RTX 4090 实测）
+
+同一镜头（4 秒、1344x768、3 张参考图、同一随机种子），只计 ComfyUI 执行时间：
+
+| 方案 | 工作流 | 耗时 |
+|---|---|---|
+| 原高质量（20 步） | — | 371 秒 |
+| 高质量 + INT8 注意力 | — | 197 秒 |
+| 高质量 + INT8 注意力 + 稀疏注意力 | `minimax_h3_r2v_quality_api.json` | 158 秒 |
+| 4 步加速 LoRA + INT8 注意力 | `minimax_h3_r2v_fast_api.json` | 66 秒 |
+
+- `ModelAttentionBackend`（comfy kitchen attention）是 INT8 量化注意力，同种子下画面几乎不变。
+- `BlockSparseAttention`（sol-attn，tau 1.3）免训练，20 步时再快约 20%；对 4 步 LoRA 几乎没有提速。
+- `EasyCache` 在这两种配置下没有带来提速。
+- FastH3 蒸馏模型只支持文生视频和首尾帧，不支持参考生视频，火宝用不上。
