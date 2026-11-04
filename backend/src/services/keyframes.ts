@@ -16,7 +16,7 @@ import { continuityAtShot, parseShotSpec, type SceneState, type ShotSpec } from 
 export type KeyframeKind = 'first' | 'last'
 const FRAME_TYPE: Record<KeyframeKind, string> = { first: 'first_frame', last: 'last_frame' }
 const SHOT_SIZE_ZH: Record<string, string> = { CU: '特写', MCU: '近景', MS: '中景', MWS: '中全景', WS: '全景', EWS: '大远景' }
-const SIZE_BY_RATIO: Record<string, string> = { '16:9': '1920x1080', '9:16': '1080x1920', '1:1': '1024x1024', '4:3': '1440x1080', '3:4': '1080x1440' }
+export const SIZE_BY_RATIO: Record<string, string> = { '16:9': '1920x1080', '9:16': '1080x1920', '1:1': '1024x1024', '4:3': '1440x1080', '3:4': '1080x1440' }
 
 function stateLines(state: SceneState | null, characterNames: string[]): string[] {
   if (!state) return []

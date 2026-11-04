@@ -5,6 +5,7 @@ import { success, created, badRequest, now } from '../utils/response.js'
 import { generateImage } from '../services/generation.js'
 import { getDramaStylePrompt } from '../services/style-preset.js'
 import { ensureSceneFinalPrompt } from '../services/final-prompt.js'
+import { SIZE_BY_RATIO } from '../services/keyframes.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 
 const app = new Hono()
@@ -87,7 +88,10 @@ app.post('/:id/generate-image', async (c) => {
   try {
     logTaskStart('SceneImage', 'generate', { sceneId: id, episodeId: ep.id, dramaId: scene.dramaId, location: scene.location })
     await db.update(schema.scenes).set({ status: 'processing', updatedAt: now() }).where(eq(schema.scenes.id, id))
-    const genId = await generateImage({ sceneId: id, dramaId: scene.dramaId, prompt, model: body.model, configId: body.config_id ?? ep.imageConfigId ?? undefined })
+    // 场景图画幅跟随项目（竖屏剧出竖构图，分镜参考图才对得上）
+    const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, scene.dramaId))
+    const size = SIZE_BY_RATIO[drama?.aspectRatio || '16:9']
+    const genId = await generateImage({ sceneId: id, dramaId: scene.dramaId, prompt, model: body.model, size, configId: body.config_id ?? ep.imageConfigId ?? undefined })
     logTaskSuccess('SceneImage', 'generate', { sceneId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
   } catch (err: any) {

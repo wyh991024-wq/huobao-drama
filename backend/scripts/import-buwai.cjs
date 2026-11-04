@@ -6,6 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 const Database = require('better-sqlite3')
+const { restyle, isObjectCharacter, NEW_STYLE } = require('./buwai-style.cjs')
 
 const ROOT = process.argv[2]
 const FROM = Number(process.argv[3] || 1)
@@ -16,7 +17,7 @@ const now = () => new Date().toISOString()
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n')
 const TITLE = '簿外良缘'
 const STYLE_VALUE = 'buwai-pixar'
-const STYLE_PROMPT = '3D animated urban-fantasy rom-com look in a soft Pixar-like style, appealing characters with expressive eyes, warm cozy color palette, clean medium-detail rendering, gentle cinematic lighting'
+const STYLE_PROMPT = NEW_STYLE
 const SIZE_ZH = { ECU: '大特写', CU: '特写', MCU: '近景', MS: '中景', MWS: '中全景', WS: '全景', EWS: '大远景' }
 // 群演按集分组（素材图提示词 C19-A/B/C）
 const EXTRA_BY_EP = { 2: 'C19-A', 9: 'C19-B', 10: 'C19-C' }
@@ -29,7 +30,8 @@ const assets = {} // code -> { kind, name, prompt, note, english }
   for (const line of assetMd.split('\n')) {
     if (line.startsWith('```')) {
       if (inBlock) {
-        const text = buf.join('\n').trim()
+        const raw = buf.join('\n').trim()
+        const text = restyle(raw, kind !== 'character' || isObjectCharacter(raw))
         if (cur) {
           // 独立资产的子条目（S08-B 走廊反打、C19-A/B/C 群演分组）单独建；其余子条目（C05-A 等）只取第一张当本体
           const separate = label && /^(C19-[A-Z]|S\d+-[A-Z])$/.test(label.code)
@@ -73,7 +75,7 @@ if (db.prepare('select id from dramas where title=? and deleted_at is null').get
 const t = now()
 db.prepare(`insert into style_presets (name, value, prompt, description, sort_order, is_active, created_at, updated_at)
   values (?, ?, ?, ?, 99, 1, ?, ?) on conflict(value) do update set prompt=excluded.prompt, updated_at=excluded.updated_at`)
-  .run('簿外良缘 · 软萌 3D', STYLE_VALUE, STYLE_PROMPT, '《簿外良缘》画风句（gen.py 的 V）', t, t)
+  .run('簿外良缘 · 国漫 3D', STYLE_VALUE, STYLE_PROMPT, '《簿外良缘》画风句（gen.py 的 V）', t, t)
 
 const tx = db.transaction(() => {
   const dramaId = db.prepare(`insert into dramas (title, description, genre, style, aspect_ratio, total_episodes, status, created_at, updated_at)
@@ -117,7 +119,7 @@ const tx = db.transaction(() => {
     for (const m of md.matchAll(/^### (E\d+-\d+)（[^）]*）参考图：(.*)\n```\n([\s\S]*?)\n```/gm)) {
       const refs = {}
       for (const r of m[2].matchAll(/图(\d+)=((?:C|S|P)\d+(?:-[A-Z])?)/g)) refs[r[1]] = r[2]
-      prompts[m[1]] = m[3].replace(/<Picture (\d+)>/g, (x, n) => refs[n] ? '@' + nameOf(refs[n], ep) : x)
+      prompts[m[1]] = restyle(m[3]).replace(/<Picture (\d+)>/g, (x, n) => refs[n] ? '@' + nameOf(refs[n], ep) : x)
     }
 
     const shots = data.shots
