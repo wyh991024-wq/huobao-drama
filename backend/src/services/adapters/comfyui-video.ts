@@ -48,6 +48,8 @@ export type MediaKind = 'image' | 'video' | 'audio'
 
 interface ComfySettings {
   workflow?: Workflow | string
+  /** 有首帧（关键帧）时使用的工作流，如 H3 首尾帧（MiniMaxH3ImageToVideo） */
+  keyframeWorkflow?: Workflow | string
   negativePrompt?: string
   fps?: number
   width?: number
@@ -113,6 +115,41 @@ export function toMiniMaxH3Tags(prompt: string): string {
     .replace(/音色参考音频(\d+)/g, '<Audio $1>')
 }
 
+/**
+ * Ref2VA 六段式提示词 → H3 首尾帧（I2VA / FL2VA）格式：
+ * 首行对齐指令 + integrated_multimodal_description + overall_soundscape + non_diegetic_music。
+ * 首尾帧模式不挂参考图，<Subject N> 换成其定义里的称呼，@引用删掉；非六段式提示词直接接在指令后面。
+ */
+export function toMiniMaxH3KeyframePrompt(prompt: string, opts: { hasLast: boolean; duration: number }): string {
+  const seconds = Math.min(15, Math.max(3, opts.duration)).toFixed(2)
+  const instruction = opts.hasLast
+    ? `How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the ${seconds}-second mark of the target video.`
+    : 'For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.'
+  const sections: Record<string, string> = {}
+  let current = ''
+  for (const line of prompt.split(/\r?\n/)) {
+    const m = line.match(/^\s*(subject_definitions|summary|retention_analysis|detailed_description|overall_soundscape|non_diegetic_music|integrated_multimodal_description)\s*:\s*(.*)$/)
+    if (m) { current = m[1]; sections[current] = m[2] ? m[2] + '\n' : ''; continue }
+    if (current) sections[current] += line + '\n'
+  }
+  const stripRefs = (t: string) => t.replace(/@图片\d+\s*/g, '').replace(/@[^\s,，。.;；:：()（）<>]+/g, '').replace(/\s+([,.;])/g, '$1')
+  const body = sections.detailed_description || sections.integrated_multimodal_description
+  if (!body) return `${instruction}\n\nintegrated_multimodal_description: ${stripRefs(prompt)}`
+  // <Subject N> 的称呼：取定义里 "is the ... shown in" 之间的短语
+  const names: Record<string, string> = {}
+  for (const line of (sections.subject_definitions || '').split('\n')) {
+    const m = line.match(/<Subject (\d+)>\s+is\s+(.+?)(?:\s+shown in\b|,|$)/i)
+    if (m) names[m[1]] = m[2].trim()
+  }
+  let text = body.trim().replace(/<Subject (\d+)>/g, (_x, n) => names[n] || 'the subject')
+  text = stripRefs(text)
+  text = text.replace(/\[Shot 1\]\s*/, '[Shot 1] The shot begins exactly from the composition, character positions, and lighting established by Picture 1. ')
+  if (opts.hasLast) text = text.replace(/\s*$/, ' By the end of the shot, the action and camera settle into the pose, spacing, and composition established by Picture 2.')
+  const soundscape = (sections.overall_soundscape || '').trim() || 'Quiet ambient room tone.'
+  const music = (sections.non_diegetic_music || '').trim() || 'N/A'
+  return `${instruction}\n\nintegrated_multimodal_description: ${text.replace(/\n+/g, ' ')}\n\noverall_soundscape: ${soundscape}\n\nnon_diegetic_music: ${music}`
+}
+
 const isH3Node = (node: WorkflowNode) => /MiniMaxH3/.test(node.class_type || '')
 
 export class ComfyUIVideoAdapter implements VideoProviderAdapter {
@@ -125,13 +162,17 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
 
   async prepareGenerateRequest(config: AIConfig, record: VideoGenerationRecord): Promise<ProviderRequest> {
     const settings = this.settingsOf(config)
-    const workflow = this.loadWorkflow(settings)
+    const keyframeMode = !!(record.firstFrameUrl && settings.keyframeWorkflow)
+    const workflow = this.loadWorkflow(keyframeMode ? { ...settings, workflow: settings.keyframeWorkflow } : settings)
     const autoFill = settings.autoFill !== false
 
     const negativePrompt = (settings.negativePrompt || '').trim()
     const h3 = Object.values(workflow).some(isH3Node)
     const rawPrompt = (record.prompt || '').trim()
-    const prompt = h3 ? toMiniMaxH3Tags(rawPrompt) : rawPrompt
+    const h3Keyframe = h3 && Object.values(workflow).some((n) => n.class_type === 'MiniMaxH3ImageToVideo')
+    const prompt = h3Keyframe
+      ? toMiniMaxH3KeyframePrompt(rawPrompt, { hasLast: !!(record.lastFrameUrl || '').trim(), duration: Number(record.duration) > 0 ? Number(record.duration) : 5 })
+      : h3 ? toMiniMaxH3Tags(rawPrompt) : rawPrompt
     const fps = Number(settings.fps) > 0 ? Number(settings.fps) : (h3 ? 24 : 16)
     const duration = Number(record.duration) > 0 ? Number(record.duration) : 5
     const dims = resolveDimensions(record.resolution, record.aspectRatio, h3 ? 32 : 16)

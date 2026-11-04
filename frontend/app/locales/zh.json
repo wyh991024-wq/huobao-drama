@@ -926,6 +926,25 @@
       "transferring": "视频已生成，转存中",
       "awaitingDelivery": "视频已生成，等待交付",
       "restoreHint": "恢复已有任务，避免重复生成"
+    },
+    "kf": {
+      "title": "关键帧",
+      "hint": "先挑首帧/尾帧，再生成视频（走首尾帧模式）",
+      "countHint": "每次生成的候选数",
+      "first": "首帧",
+      "last": "尾帧",
+      "generate": "生成候选",
+      "clear": "清除",
+      "none": "未选择",
+      "started": "已开始生成 {n} 张候选",
+      "lastWithoutFirst": "建议先选首帧，尾帧会参考首帧保持一致",
+      "batchFirst": "批量首帧",
+      "batchLast": "批量尾帧",
+      "batchFirstHint": "为没有首帧的分镜生成候选首帧",
+      "batchLastHint": "为有运镜、还没有尾帧的分镜生成候选尾帧",
+      "batchFirstConfirm": "为所有还没有首帧的分镜各生成 {n} 张候选？按当前图片模型计费。",
+      "batchLastConfirm": "为有运镜、还没有尾帧的分镜各生成 {n} 张候选？按当前图片模型计费。",
+      "batchStarted": "已为 {n} 个分镜开始生成候选"
     }
   },
   "errors": {

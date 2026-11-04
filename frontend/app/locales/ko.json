@@ -926,6 +926,25 @@
       "transferring": "영상 생성 완료, 전송 중",
       "awaitingDelivery": "영상 생성 완료, 전달 대기 중",
       "restoreHint": "기존 작업을 복구하여 중복 생성을 방지하세요"
+    },
+    "kf": {
+      "title": "키프레임",
+      "hint": "첫/마지막 프레임을 고른 뒤 영상 생성(첫·끝 프레임 모드)",
+      "countHint": "한 번에 생성할 후보 수",
+      "first": "첫 프레임",
+      "last": "마지막 프레임",
+      "generate": "후보 생성",
+      "clear": "지우기",
+      "none": "선택 안 함",
+      "started": "후보 {n}장 생성 시작",
+      "lastWithoutFirst": "첫 프레임을 먼저 고르는 것을 권장합니다",
+      "batchFirst": "첫 프레임 일괄",
+      "batchLast": "마지막 프레임 일괄",
+      "batchFirstHint": "첫 프레임이 없는 컷에 후보 생성",
+      "batchLastHint": "카메라 이동이 있고 마지막 프레임이 없는 컷에 후보 생성",
+      "batchFirstConfirm": "첫 프레임이 없는 모든 컷에 후보를 {n}장씩 생성할까요?",
+      "batchLastConfirm": "카메라 이동이 있는 컷에 마지막 프레임 후보를 {n}장씩 생성할까요?",
+      "batchStarted": "{n}개 컷의 후보 생성을 시작했습니다"
     }
   },
   "errors": {

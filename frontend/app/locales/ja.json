@@ -926,6 +926,25 @@
       "transferring": "動画生成済み・転送中",
       "awaitingDelivery": "動画生成済み・配信待ち",
       "restoreHint": "既存のタスクを復旧し、重複生成を避けます"
+    },
+    "kf": {
+      "title": "キーフレーム",
+      "hint": "先頭/末尾フレームを選んでから動画生成（首尾フレームモード）",
+      "countHint": "1 回あたりの候補数",
+      "first": "先頭フレーム",
+      "last": "末尾フレーム",
+      "generate": "候補を生成",
+      "clear": "クリア",
+      "none": "未選択",
+      "started": "{n} 枚の候補を生成中",
+      "lastWithoutFirst": "先に先頭フレームを選ぶことをおすすめします",
+      "batchFirst": "先頭を一括生成",
+      "batchLast": "末尾を一括生成",
+      "batchFirstHint": "先頭フレームがないカットに候補を生成",
+      "batchLastHint": "カメラワークがあり末尾フレームがないカットに候補を生成",
+      "batchFirstConfirm": "先頭フレームのない全カットに {n} 枚ずつ候補を生成しますか？",
+      "batchLastConfirm": "カメラワークのあるカットに末尾候補を {n} 枚ずつ生成しますか？",
+      "batchStarted": "{n} カットの候補生成を開始しました"
     }
   },
   "errors": {

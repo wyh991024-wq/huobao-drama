@@ -503,6 +503,8 @@
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   {{ t('episode.recovery.restoreFailed', { n: recoverableVideoCount }) }}
                 </button>
+                <button class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchFirstHint')" @click="batchKeyframes('first')">{{ t('episode.kf.batchFirst') }}</button>
+                <button class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchLastHint')" @click="batchKeyframes('last')">{{ t('episode.kf.batchLast') }}</button>
                 <button class="btn btn-sm" :class="{ 'is-on': videoSelectMode }" @click="toggleVideoSelectMode">
                   {{ videoSelectMode ? t('episode.vid.selectDone', { n: selectedVideoSbIds.length }) : t('episode.vid.select') }}
                 </button>
@@ -622,6 +624,43 @@
                       <span class="field-label">{{ t('episode.sb.descLabel') }} <span class="dim">({{ t('episode.sb.descHint') }})</span></span>
                       <textarea :value="selectedSb.description || ''" class="textarea" rows="7" @blur="updateField(selectedSb, 'description', $event.target.value)" :placeholder="t('episode.sb.descPlaceholder')" />
                     </label>
+                    <div class="keyframe-panel">
+                      <div class="keyframe-panel-head">
+                        <span class="field-label">{{ t('episode.kf.title') }}</span>
+                        <span class="dim">{{ t('episode.kf.hint') }}</span>
+                        <select v-model.number="keyframeCount" class="keyframe-count" :title="t('episode.kf.countHint')">
+                          <option :value="1">×1</option><option :value="2">×2</option><option :value="3">×3</option><option :value="4">×4</option>
+                        </select>
+                      </div>
+                      <div class="keyframe-cols">
+                        <div v-for="kind in ['first', 'last']" :key="kind" class="keyframe-col">
+                          <div class="keyframe-col-head">
+                            <strong>{{ kind === 'first' ? t('episode.kf.first') : t('episode.kf.last') }}</strong>
+                            <button class="btn btn-sm" :disabled="keyframeBusy[kind]" @click="generateKeyframes(kind)">
+                              <Loader2 v-if="keyframeBusy[kind]" :size="11" class="animate-spin" />{{ t('episode.kf.generate') }}
+                            </button>
+                            <button v-if="selectedKeyframe(kind)" class="btn btn-sm btn-ghost" @click="chooseKeyframe(kind, null)">{{ t('episode.kf.clear') }}</button>
+                          </div>
+                          <div class="keyframe-selected">
+                            <img v-if="selectedKeyframe(kind)" :src="genTaskPreviewSrc(selectedKeyframe(kind))" alt="" @click="openImageViewer(genTaskPreviewSrc(selectedKeyframe(kind)), kind === 'first' ? t('episode.kf.first') : t('episode.kf.last'))" />
+                            <span v-else class="dim">{{ t('episode.kf.none') }}</span>
+                          </div>
+                          <div v-if="keyframeCandidates(kind).length" class="keyframe-candidates">
+                            <button
+                              v-for="c in keyframeCandidates(kind)" :key="c.task_id"
+                              :class="['keyframe-candidate', { 'is-selected': c.image && c.image === selectedKeyframe(kind) }]"
+                              :disabled="!c.image"
+                              :title="c.error || ''"
+                              @click="chooseKeyframe(kind, c.image)"
+                            >
+                              <img v-if="c.image" :src="genTaskPreviewSrc(c.image)" alt="" />
+                              <Loader2 v-else-if="c.status === 'processing'" :size="14" class="animate-spin" />
+                              <span v-else class="keyframe-failed">×</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <div v-if="selectedSpec" class="director-spec">
                       <div class="director-spec-head">
                         <span class="field-label">{{ t('episode.sb.directorSpec') }}</span>
@@ -2695,6 +2734,71 @@ const selectedVideoTaskNumber = computed(() => {
   return index >= 0 ? index + 1 : 0
 })
 
+// ========== 关卡 3：关键帧 ==========
+const keyframeCount = ref(2)
+const keyframeData = ref(null)
+const keyframeBusy = reactive({ first: false, last: false })
+const keyframeBatching = ref(false)
+let keyframeTimer = null
+function selectedKeyframe(kind) {
+  const sb = selectedSb.value
+  if (!sb) return ''
+  return kind === 'first' ? (sb.first_frame_image || sb.firstFrameImage || '') : (sb.last_frame_image || sb.lastFrameImage || '')
+}
+function keyframeCandidates(kind) {
+  return (keyframeData.value?.candidates || []).filter(c => c.kind === kind)
+}
+async function loadKeyframes() {
+  const sb = selectedSb.value
+  if (!sb?.id) { keyframeData.value = null; return }
+  try {
+    const data = await storyboardAPI.keyframes(sb.id)
+    if (selectedSb.value?.id !== sb.id) return
+    keyframeData.value = data
+    sb.first_frame_image = data.first_frame_image
+    sb.last_frame_image = data.last_frame_image
+    clearTimeout(keyframeTimer)
+    if ((data.candidates || []).some(c => c.status === 'processing')) keyframeTimer = setTimeout(loadKeyframes, 5000)
+  } catch { /* 面板切换时忽略 */ }
+}
+watch(() => selectedSb.value?.id, () => { clearTimeout(keyframeTimer); keyframeData.value = null; loadKeyframes() })
+onBeforeUnmount(() => clearTimeout(keyframeTimer))
+function keyframeModelArgs() {
+  return { model: bareModelName(imageModel.value) || undefined, config_id: ownerConfigId(imageModelOptions.value, imageModel.value) }
+}
+async function generateKeyframes(kind) {
+  const sb = selectedSb.value
+  if (!sb || keyframeBusy[kind]) return
+  if (kind === 'last' && !selectedKeyframe('first')) toast.info(t('episode.kf.lastWithoutFirst'))
+  keyframeBusy[kind] = true
+  try {
+    await storyboardAPI.generateKeyframes(sb.id, { kind, count: keyframeCount.value, ...keyframeModelArgs() })
+    toast.success(t('episode.kf.started', { n: keyframeCount.value }))
+    await loadKeyframes()
+  } catch (e) { toastError(e) }
+  finally { keyframeBusy[kind] = false }
+}
+async function chooseKeyframe(kind, image) {
+  const sb = selectedSb.value
+  if (!sb) return
+  try {
+    await storyboardAPI.selectKeyframe(sb.id, { kind, image })
+    if (kind === 'first') sb.first_frame_image = image
+    else sb.last_frame_image = image
+  } catch (e) { toastError(e) }
+}
+async function batchKeyframes(kind) {
+  if (!epId.value || keyframeBatching.value) return
+  if (!window.confirm(t(kind === 'first' ? 'episode.kf.batchFirstConfirm' : 'episode.kf.batchLastConfirm', { n: keyframeCount.value }))) return
+  keyframeBatching.value = true
+  try {
+    const res = await episodeAPI.batchKeyframes(epId.value, { kind, count: keyframeCount.value, ...keyframeModelArgs() })
+    toast.success(t('episode.kf.batchStarted', { n: (res?.storyboard_ids || []).length }))
+    await loadKeyframes()
+  } catch (e) { toastError(e) }
+  finally { keyframeBatching.value = false }
+}
+
 // ========== 分镜审阅关卡：导演参数与规则检查 ==========
 const directorCheck = ref(null)
 const directorChecking = ref(false)
@@ -3498,6 +3602,11 @@ async function genVid(sb, opts = {}) {
     config_id: ownerConfigId(videoModelOptions.value, videoModel.value),
     reference_image_urls: referenceImages,
   }
+  // 关卡 3 选中的关键帧：有首帧时视频走首尾帧模式
+  const firstFrame = sb.first_frame_image || sb.firstFrameImage
+  const lastFrame = sb.last_frame_image || sb.lastFrameImage
+  if (firstFrame) params.first_frame_url = firstFrame
+  if (firstFrame && lastFrame) params.last_frame_url = lastFrame
   if (!params.prompt && !referenceImages.length) {
     toast.error(t('episode.vid.needRefOrPrompt'))
     return
@@ -6147,6 +6256,18 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 }
 
 /* 任务触发按钮(顶栏) */
+.keyframe-panel { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+.keyframe-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.keyframe-count { margin-left: auto; font-size: 12px; background: transparent; color: inherit; border: 1px solid var(--border); border-radius: 6px; padding: 1px 4px; }
+.keyframe-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.keyframe-col-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 12px; }
+.keyframe-selected { aspect-ratio: 16 / 9; border: 1px dashed var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 12px; }
+.keyframe-selected img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+.keyframe-candidates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
+.keyframe-candidate { aspect-ratio: 16 / 9; padding: 0; border: 2px solid transparent; border-radius: 4px; overflow: hidden; background: var(--bg-2, rgba(127,127,127,.12)); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.keyframe-candidate img { width: 100%; height: 100%; object-fit: cover; }
+.keyframe-candidate.is-selected { border-color: var(--accent, #f0883e); }
+.keyframe-failed { color: var(--error, #e5484d); }
 .director-spec { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
 .director-spec-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .director-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--bg-2, rgba(127,127,127,.12)); color: var(--text-2); }

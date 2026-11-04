@@ -157,3 +157,15 @@ RTX 4090 实测：1920x1088 文生图约 64 秒，带两张参考图的 1344x768
 - `BlockSparseAttention`（sol-attn，tau 1.3）免训练，20 步时再快约 20%；对 4 步 LoRA 几乎没有提速。
 - `EasyCache` 在这两种配置下没有带来提速。
 - FastH3 蒸馏模型只支持文生视频和首尾帧，不支持参考生视频，火宝用不上。
+
+## 关键帧（首尾帧）流程
+
+漫剧流水线升级第二步：先出图挑关键帧，再让视频模型在首帧与尾帧之间补运动，避免 Ref2VA 纯参考生成时人物走样。
+
+1. 分镜面板「关键帧」区：首帧 / 尾帧各自「生成候选」（×1–×4），候选图按 `shot_spec` 的 start_frame / end_frame、场记状态、景别拼提示词，参考图依次为：本镜首帧（生成尾帧时）或上一镜结束画面（同场生成首帧时）→ 角色定妆图 → 场景 → 道具。候选不会覆盖分镜，点选后才写入 `first_frame_image` / `last_frame_image`。
+2. 工具栏「批量首帧」给所有还没首帧的分镜出候选；「批量尾帧」只给有运镜（camera_move ≠ STATIC）的分镜出候选。
+3. 生成视频时分镜有首帧就自动带 `first_frame_url`（有尾帧再带 `last_frame_url`）。ComfyUI 配置的 `settings.keyframeWorkflow` 存在时改用该工作流：
+   - `docs/workflows/minimax_h3_fl2va_fast_api.json`：FL2VA pruned int8 + 8 步 turbo LoRA + INT8 注意力（4090 上 5 秒镜头约 2.5 分钟）
+   - `docs/workflows/minimax_h3_fl2va_quality_api.json`：FL2VA int8 20 步 + INT8 注意力 + sol-attn 稀疏注意力
+   适配器会把六段式 Ref2VA 提示词转成 FL2VA/I2VA 格式（去掉 @ 引用、Subject 换成描述、锚定「从 Picture 1 开始、停在 Picture 2」）。
+4. 接口：`GET/POST /storyboards/:id/keyframes`、`POST /storyboards/:id/keyframes/select`、`POST /episodes/:id/keyframes`（批量）。Wan 3.0（aliyun）首尾帧不能混用参考图，带首帧时后端自动丢弃参考图。

@@ -184,6 +184,10 @@ app.post('/', async (c) => {
       const effectiveConfig = configId
         ? (await getConfigById(configId)) ?? await getActiveConfig('video')
         : await getActiveConfig('video')
+      // 分镜选了关键帧时前端仍附带角色/场景参考图；Wan 首尾帧不能混用参考素材，此时以关键帧为准
+      if (videoBody.first_frame_url && !videoBody.official_media.length && (effectiveConfig?.provider || '').toLowerCase() === 'aliyun') {
+        videoBody.reference_image_urls = []
+      }
       const validationError = validateVideoRequest(videoBody, effectiveConfig?.provider)
       if (validationError) return badRequest(c, validationError)
       const voices = await resolveStoryboardVoiceReferences(String(videoBody.prompt || ''), Number(body.storyboard_id) || undefined, videoBody.reference_audio_urls)

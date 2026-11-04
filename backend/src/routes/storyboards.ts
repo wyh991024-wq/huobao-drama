@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { generateKeyframeCandidates, listKeyframes, selectKeyframe } from '../services/keyframes.js'
 import { eq } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
 import { success, created, now, badRequest } from '../utils/response.js'
@@ -158,6 +159,27 @@ app.put('/:id', async (c) => {
     characterIds: body.character_ids,
     propIds: body.prop_ids,
   })
+  return success(c)
+})
+
+// ===== 关键帧（关卡 3） =====
+// GET /storyboards/:id/keyframes — 候选与当前选择
+app.get('/:id/keyframes', async (c) => {
+  try { return success(c, await listKeyframes(Number(c.req.param('id')))) } catch (e: any) { return badRequest(c, e.message) }
+})
+// POST /storyboards/:id/keyframes { kind: first|last, count, config_id?, model? } — 生成候选
+app.post('/:id/keyframes', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const kind = body.kind === 'last' ? 'last' : 'first'
+  try {
+    return success(c, await generateKeyframeCandidates(Number(c.req.param('id')), kind, Number(body.count) || 2, { configId: body.config_id || undefined, model: body.model || undefined }))
+  } catch (e: any) { return badRequest(c, e.message) }
+})
+// POST /storyboards/:id/keyframes/select { kind, image|null } — 选定或清除
+app.post('/:id/keyframes/select', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const kind = body.kind === 'last' ? 'last' : 'first'
+  await selectKeyframe(Number(c.req.param('id')), kind, body.image || null)
   return success(c)
 })
 

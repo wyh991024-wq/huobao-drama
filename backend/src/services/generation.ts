@@ -49,6 +49,8 @@ interface GenerateImageParams {
   referenceImages?: string[]
   frameType?: string
   configId?: number
+  /** 关键帧候选图：完成后不自动写回分镜首帧/尾帧，由人挑选 */
+  keyframeCandidate?: boolean
 }
 
 interface GenerateVideoParams {
@@ -95,6 +97,7 @@ export async function generateImage(params: GenerateImageParams): Promise<number
     size: params.size || '1920x1080',
     frameType: params.frameType,
     referenceImages: params.referenceImages,
+    keyframeCandidate: params.keyframeCandidate || undefined,
   })
 
   logTaskStart('ImageTask', 'enqueue', {
@@ -516,6 +519,7 @@ async function handleImageCompleteBase64(record: SysTaskRecord, base64Data: stri
 // 图片完成后回写业务表：分镜(按 frameType)、角色、场景、道具
 async function writeBackImageAssets(record: SysTaskRecord, localPath: string) {
   const params = parseTaskParams(record.params)
+  if (record.storyboardId && params.keyframeCandidate) return
   if (record.storyboardId) {
     const sbUpdate: Record<string, any> = { updatedAt: now() }
     if (params.frameType === 'first_frame') sbUpdate.firstFrameImage = localPath

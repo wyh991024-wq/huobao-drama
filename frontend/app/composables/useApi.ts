@@ -48,6 +48,7 @@ export const episodeAPI = {
   update: (id: number, data: any) => api.put(`/episodes/${id}`, data),
   del: (id: number) => api.del(`/episodes/${id}`),
   storyboardCheck: (id: number) => api.get(`/episodes/${id}/storyboard-check`),
+  batchKeyframes: (id: number, d: { kind: 'first' | 'last'; count: number; model?: string; config_id?: number }) => api.post(`/episodes/${id}/keyframes`, d),
   characters: (id: number) => api.get(`/episodes/${id}/characters`),
   scenes: (id: number) => api.get(`/episodes/${id}/scenes`),
   props: (id: number) => api.get(`/episodes/${id}/props`),
@@ -63,6 +64,9 @@ export const storyboardAPI = {
   create: (data: any) => api.post('/storyboards', data),
   update: (id: number, data: any) => api.put(`/storyboards/${id}`, data),
   del: (id: number) => api.del(`/storyboards/${id}`),
+  keyframes: (id: number) => api.get(`/storyboards/${id}/keyframes`),
+  generateKeyframes: (id: number, d: { kind: 'first' | 'last'; count: number; model?: string; config_id?: number }) => api.post(`/storyboards/${id}/keyframes`, d),
+  selectKeyframe: (id: number, d: { kind: 'first' | 'last'; image: string | null }) => api.post(`/storyboards/${id}/keyframes/select`, d),
 }
 
 export const characterAPI = {

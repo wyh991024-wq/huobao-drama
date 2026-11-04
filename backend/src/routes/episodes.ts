@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { batchKeyframes } from '../services/keyframes.js'
 import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
@@ -163,6 +164,15 @@ app.post('/:id/generate-video-prompts', async (c) => {
 app.get('/:id/video-prompts-status', async (c) => {
   const id = Number(c.req.param('id'))
   return success(c, getVideoPromptBatchStatus(id))
+})
+
+// POST /episodes/:id/keyframes { kind, count, only_missing, config_id?, model? } — 整集批量生成候选关键帧
+app.post('/:id/keyframes', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const kind = body.kind === 'last' ? 'last' : 'first'
+  try {
+    return success(c, await batchKeyframes(Number(c.req.param('id')), kind, Number(body.count) || 2, { configId: body.config_id || undefined, model: body.model || undefined, onlyMissing: body.only_missing !== false }))
+  } catch (e: any) { return badRequest(c, e.message) }
 })
 
 // GET /episodes/:id/storyboard-check — 分镜审阅关卡：导演规则检查
