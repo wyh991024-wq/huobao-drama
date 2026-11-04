@@ -141,7 +141,11 @@ export function toMiniMaxH3KeyframePrompt(prompt: string, opts: { hasLast: boole
     const m = line.match(/<Subject (\d+)>\s+is\s+(.+?)(?:\s+shown in\b|,|$)/i)
     if (m) names[m[1]] = m[2].trim()
   }
-  let text = body.trim().replace(/<Subject (\d+)>/g, (_x, n) => names[n] || 'the subject')
+  // 参考图式的 integrated_multimodal_description：首尾帧模式下图片是首/尾帧，删掉参考图定义与"本镜角色/场景"句
+  let text = body.trim()
+    .split('\n').filter(l => !/^\s*Reference setup\./i.test(l)).join('\n')
+    .replace(/\s*Characters in this shot:[^\n.]*\./gi, '')
+    .replace(/<Subject (\d+)>/g, (_x, n) => names[n] || 'the subject')
   text = stripRefs(text)
   text = text.replace(/\[Shot 1\]\s*/, '[Shot 1] The shot begins exactly from the composition, character positions, and lighting established by Picture 1. ')
   if (opts.hasLast) text = text.replace(/\s*$/, ' By the end of the shot, the action and camera settle into the pose, spacing, and composition established by Picture 2.')
