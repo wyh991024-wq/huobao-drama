@@ -7,6 +7,7 @@ import type { ToolExecutionContext } from '@mastra/core/tools'
 import { z } from 'zod'
 import { db, getInsertId, schema } from '../../db/index.js'
 import { and, eq, isNull } from 'drizzle-orm'
+import { CAMERA_MOVES, SHOT_SIZES, checkStoryboardRules, continuityAtShot, isPovScript, parseShotSpec, type SceneState, type ShotSpec } from '../../services/director.js'
 import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
 import { getDramaId, getEpisodeId } from '../context.js'
@@ -106,6 +107,55 @@ async function validateStoryboardBindings(episodeId: number, dramaId: number, sc
 
 type ToolContext = ToolExecutionContext | undefined
 
+const characterStateSchema = z.object({
+  outfit: z.string().optional(),
+  position: z.string().optional(),
+  holding: z.string().optional(),
+  emotion: z.string().optional(),
+  facing: z.string().optional().describe('朝向/视线方向，如「面向画右」'),
+})
+
+/** 导演参数（漫剧流水线升级 4.1 节） */
+const shotSpecSchema = z.object({
+  shot_id: z.string().optional().describe('如 E01-S02-05'),
+  scene_code: z.string().describe('所属场，如 E01-S02，必须与 save_scene_continuity 中的 scene_code 一致'),
+  shot_size: z.string().describe('CU|MCU|MS|MWS|WS|EWS'),
+  camera_move: z.string().describe('运镜模板 ID，只能选一个'),
+  move_speed: z.string().optional().describe('slow|medium|fast'),
+  start_frame: z.string().describe('镜头开始时：谁在什么位置、什么姿势、看向哪里'),
+  end_frame: z.string().describe('镜头结束时：同上'),
+  action: z.string().describe('镜头内的单一主动作'),
+  dialogue: z.object({ speaker_id: z.string().optional(), speaker: z.string().optional(), text: z.string().optional(), tone: z.string().optional() }).nullable().optional(),
+  continuity_in: z.string().optional().describe('必须与上一镜 end_frame 一致的要素'),
+  purpose: z.string().describe('建立/推进/反应/揭示/转场/情绪落点'),
+  // 宽松接收：模型偶尔把状态写成字符串或嵌套对象，不能因此整批保存失败
+  end_state: z.object({
+    characters: z.record(z.string(), z.any()).optional(),
+    props: z.record(z.string(), z.any()).optional(),
+  }).passthrough().optional().describe('本镜结束时人物/道具状态的变化（按角色名），用于更新场记表'),
+})
+
+async function sceneStates(episodeId: number): Promise<Map<string, SceneState>> {
+  const rows = await db.select().from(schema.sceneContinuity).where(eq(schema.sceneContinuity.episodeId, episodeId))
+  const map = new Map<string, SceneState>()
+  for (const r of rows) {
+    try { map.set(r.sceneCode, JSON.parse(r.state)) } catch { /* 跳过损坏记录 */ }
+  }
+  return map
+}
+
+/** 本集全部分镜的规则检查结果（agent 自查与分镜审阅共用） */
+export async function checkEpisodeStoryboards(episodeId: number) {
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
+  const rows = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId)))
+    .filter(sb => !sb.deletedAt)
+  const violations = checkStoryboardRules(
+    rows.map(sb => ({ id: sb.id, n: sb.storyboardNumber, duration: sb.duration || 0, spec: parseShotSpec(sb.shotSpec) })),
+    { pov: isPovScript(ep?.scriptContent || ep?.content) },
+  )
+  return { shots: rows.length, violations }
+}
+
 function requireIds(context: ToolContext): { episodeId: number; dramaId: number } | { error: string } {
   const episodeId = getEpisodeId(context?.requestContext)
   const dramaId = getDramaId(context?.requestContext)
@@ -146,6 +196,15 @@ const readStoryboardContext = createTool({
       .where(eq(schema.props.dramaId, dramaId))
     const existingStoryboards = await db.select().from(schema.storyboards)
       .where(eq(schema.storyboards.episodeId, episodeId))
+    const continuityMap = await sceneStates(episodeId)
+    const liveSorted = existingStoryboards.filter(sb => !sb.deletedAt).sort((a, b) => a.storyboardNumber - b.storyboardNumber)
+    const continuityFor = (sbId: number) => {
+      const idx = liveSorted.findIndex(x => x.id === sbId)
+      const spec = parseShotSpec(liveSorted[idx]?.shotSpec)
+      if (!spec?.scene_code) return null
+      const previous = liveSorted.slice(0, idx).map(x => parseShotSpec(x.shotSpec)).filter((p): p is ShotSpec => !!p && p.scene_code === spec.scene_code)
+      return continuityAtShot(continuityMap.get(spec.scene_code), previous)
+    }
 
     const characters = chars
       .filter(c => !c.deletedAt)
@@ -162,6 +221,8 @@ const readStoryboardContext = createTool({
         has_voice: Boolean(c.voiceAudioUrl?.trim()),
         voice_reference: c.voiceAudioUrl?.trim() ? `#${c.name}` : null,
       }))
+      // 说话人编号全剧固定：按角色在项目中的创建顺序 S1、S2…
+      .map((c) => ({ ...c, speaker_id: `S${chars.filter(x => !x.deletedAt).sort((a, b) => a.id - b.id).findIndex(x => x.id === c.id) + 1}` }))
 
     const scenes = scns
       .filter(s => !s.deletedAt)
@@ -209,6 +270,8 @@ const readStoryboardContext = createTool({
           description: sb.description || '',
           atmosphere: sb.atmosphere || '',
           video_prompt: sb.videoPrompt || '',
+          shot_spec: parseShotSpec(sb.shotSpec),
+          continuity_at_start: continuityFor(sb.id),
         }
       }))
 
@@ -224,6 +287,9 @@ const readStoryboardContext = createTool({
       scenes,
       props,
       existing_storyboards: existingStoryboardPayload,
+      scene_continuity: [...continuityMap.values()],
+      camera_moves: Object.entries(CAMERA_MOVES).map(([id, m]) => ({ id, name: m.name, h3: m.h3, use: m.use })),
+      pov_script: isPovScript(script),
     }
     logTaskSuccess('StoryboardTool', 'read-context', {
       episodeId,
@@ -257,7 +323,14 @@ const storyboardFields = z.object({
   scene_id: z.number().nullable().optional(),
   character_ids: z.array(z.number()).optional(),
   prop_ids: z.array(z.number()).optional(),
+  shot_spec: shotSpecSchema.optional(),
 })
+
+const specColumns = (spec: any, fallback: { shot_type?: string; movement?: string }) => spec ? {
+  shotSpec: JSON.stringify(spec),
+  shotType: spec.shot_size || fallback.shot_type,
+  movement: spec.camera_move ? `${spec.camera_move}${spec.move_speed ? '/' + spec.move_speed : ''}` : fallback.movement,
+} : {}
 
 const saveStoryboards = createTool({
   id: 'save_storyboards',
@@ -314,6 +387,7 @@ const saveStoryboards = createTool({
           videoPrompt: sb.video_prompt, bgmPrompt: sb.bgm_prompt,
           soundEffect: sb.sound_effect,
           sceneId: sb.scene_id, duration: sb.duration || 10,
+          ...specColumns(sb.shot_spec, sb),
           updatedAt: ts,
         }).where(eq(schema.storyboards.id, existingId))
         await syncStoryboardCharacters(existingId, sb.character_ids || [])
@@ -330,6 +404,7 @@ const saveStoryboards = createTool({
           videoPrompt: sb.video_prompt, bgmPrompt: sb.bgm_prompt,
           soundEffect: sb.sound_effect,
           sceneId: sb.scene_id, duration: sb.duration || 10,
+          ...specColumns(sb.shot_spec, sb),
           createdAt: ts, updatedAt: ts,
         })
         const newId = getInsertId(res)
@@ -381,6 +456,7 @@ const updateStoryboard = createTool({
     character_ids: z.array(z.number()).optional(),
     prop_ids: z.array(z.number()).optional(),
     duration: z.number().optional(),
+    shot_spec: shotSpecSchema.optional(),
   }),
   execute: async ({ storyboard_id, ...fields }, context) => {
     const ids = requireIds(context)
@@ -441,6 +517,7 @@ const updateStoryboard = createTool({
     if ('description' in fields) updates.description = fields.description
     if ('scene_id' in fields) updates.sceneId = fields.scene_id
     if ('duration' in fields) updates.duration = fields.duration
+    if (fields.shot_spec) Object.assign(updates, specColumns(fields.shot_spec, {}))
     await db.update(schema.storyboards).set(updates).where(eq(schema.storyboards.id, storyboard_id))
     if ('character_ids' in fields) await syncStoryboardCharacters(storyboard_id, fields.character_ids || [])
     if ('prop_ids' in fields) await syncStoryboardProps(storyboard_id, fields.prop_ids || [])
@@ -455,4 +532,47 @@ const updateStoryboard = createTool({
   },
 })
 
-export const storyboardTools = { readStoryboardContext, saveStoryboards, updateStoryboard }
+const saveSceneContinuity = createTool({
+  id: 'save_scene_continuity',
+  description: 'Save the continuity log (场记表) for each scene of this episode: location, time of day, lighting direction, and every character\'s outfit/position/holding/emotion at the start of the scene, plus prop states. Call before save_storyboards. Upserts by scene_code.',
+  inputSchema: z.object({
+    scenes: z.array(z.object({
+      scene_code: z.string().describe('如 E01-S02'),
+      scene_id: z.number().nullable().optional(),
+      location: z.string().optional(),
+      time_of_day: z.string().optional(),
+      lighting: z.string().describe('光源方向、色调，如「主光来自画左的台灯，暖黄；窗外冷蓝」'),
+      characters_state: z.record(z.string(), z.any()).describe('按角色名：服装、位置、手持物、情绪、朝向'),
+      props_state: z.record(z.string(), z.any()).optional(),
+    })),
+  }),
+  execute: async ({ scenes }, context) => {
+    const ids = requireIds(context)
+    if ('error' in ids) return ids
+    const ts = now()
+    for (const scene of scenes) {
+      const state = JSON.stringify(scene)
+      const [existing] = await db.select().from(schema.sceneContinuity)
+        .where(and(eq(schema.sceneContinuity.episodeId, ids.episodeId), eq(schema.sceneContinuity.sceneCode, scene.scene_code)))
+      if (existing) await db.update(schema.sceneContinuity).set({ state, updatedAt: ts }).where(eq(schema.sceneContinuity.id, existing.id))
+      else await db.insert(schema.sceneContinuity).values({ episodeId: ids.episodeId, sceneCode: scene.scene_code, state, createdAt: ts, updatedAt: ts })
+    }
+    logTaskSuccess('StoryboardTool', 'save-continuity', { episodeId: ids.episodeId, scenes: scenes.map(s => s.scene_code).join(',') })
+    return { message: `Saved continuity for ${scenes.length} scenes` }
+  },
+})
+
+const checkStoryboardRulesTool = createTool({
+  id: 'check_storyboard_rules',
+  description: 'Check all saved storyboards of this episode against the director rules (one camera move, shot-size rotation, establishing shot, reaction shots, continuity_in, 4-8s duration, dialogue duration, emotional ending per scene, reveal shot). Returns violations to fix with update_storyboard / save_storyboards.',
+  inputSchema: z.object({}),
+  execute: async (_input, context) => {
+    const ids = requireIds(context)
+    if ('error' in ids) return ids
+    const result = await checkEpisodeStoryboards(ids.episodeId)
+    logTaskProgress('StoryboardTool', 'check-rules', { episodeId: ids.episodeId, shots: result.shots, violations: result.violations.length })
+    return result
+  },
+})
+
+export const storyboardTools = { readStoryboardContext, saveStoryboards, updateStoryboard, saveSceneContinuity, checkStoryboardRules: checkStoryboardRulesTool }

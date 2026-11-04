@@ -726,7 +726,16 @@
       "batchDone": "视频提示词批量生成完成",
       "batchDoneFailed": "视频提示词批量生成完成，{n} 个失败",
       "batchFailed": "视频提示词批量生成失败",
-      "promptGenerated": "分镜 #{n} 视频提示词已生成"
+      "promptGenerated": "分镜 #{n} 视频提示词已生成",
+      "directorSpec": "导演参数",
+      "directorCheck": "检查导演规则",
+      "directorViolations": "{n} 处违规",
+      "directorOk": "{n} 个分镜全部通过",
+      "specStart": "起始画面",
+      "specEnd": "结束画面",
+      "specAction": "主动作",
+      "specDialogue": "台词",
+      "specContinuity": "衔接"
     },
     "ref": {
       "title": "参考素材",

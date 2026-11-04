@@ -3,6 +3,9 @@
  */
 import { Hono } from 'hono'
 import { TRANSIENT_ERROR } from '../services/extraction.js'
+import { db, schema } from '../db/index.js'
+import { and, eq, isNull } from 'drizzle-orm'
+import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { validAgentTypes } from '../agents/index.js'
 import { buildAgentRequestContext } from '../agents/context.js'
 import { mastra } from '../mastra/index.js'
@@ -68,15 +71,45 @@ app.post('/:type/chat', async (c) => {
 
   try {
     // 中转站偶发「The request could not be processed」等临时错误：重试一次（保存类工具都是覆盖或去重写入）
-    const run = () => agent.generate([{ role: 'user', content: message }], { maxSteps: 20, requestContext })
-    let result
-    try {
-      result = await run()
-    } catch (err: any) {
-      if (!TRANSIENT_ERROR.test(err?.message || '')) throw err
-      logTaskError('Agent', `${agentType}-retry`, { error: err?.message })
-      await new Promise((r) => setTimeout(r, 3000))
-      result = await run()
+    const runMessage = async (content: string) => {
+      const run = () => agent.generate([{ role: 'user', content }], { maxSteps: 20, requestContext })
+      try {
+        return await run()
+      } catch (err: any) {
+        if (!TRANSIENT_ERROR.test(err?.message || '')) throw err
+        logTaskError('Agent', `${agentType}-retry`, { error: err?.message })
+        await new Promise((r) => setTimeout(r, 3000))
+        return run()
+      }
+    }
+    let result: any = await runMessage(message)
+
+    // 分镜拆解：模型常在保存一两批后就结束。由后端续跑，直到它回复「全部完成」或不再新增分镜，
+    // 最后再做一轮导演规则自查修正。工具调用记录合并返回。
+    if (agentType === 'storyboard_breaker') {
+      const countShots = async () => (await db.select({ id: schema.storyboards.id }).from(schema.storyboards)
+        .where(and(eq(schema.storyboards.episodeId, Number(episode_id)), isNull(schema.storyboards.deletedAt)))).length
+      const merged = { toolCalls: [...(result.toolCalls || [])], toolResults: [...(result.toolResults || [])] }
+      const absorb = (r: any) => { merged.toolCalls.push(...(r.toolCalls || [])); merged.toolResults.push(...(r.toolResults || [])) }
+      let shots = await countShots()
+      for (let round = 1; round <= 8 && shots > 0 && !/全部完成/.test(result.text || ''); round++) {
+        logTaskProgress('Agent', 'storyboard-continue', { round, shots })
+        const next = await runMessage(`本集已保存 ${shots} 个分镜。请调用 read_storyboard_context 查看剧本与 existing_storyboards，只拆解尚未覆盖的剩余剧情，shot_number 从 ${shots + 1} 开始，用 save_storyboards 追加保存（不要传 replace_existing）。如果剧本已经全部覆盖，不要再保存，直接回复「全部完成」。`)
+        absorb(next)
+        result = next
+        const after = await countShots()
+        if (after === shots) break
+        shots = after
+      }
+      const check = await checkEpisodeStoryboards(Number(episode_id))
+      if (check.violations.length) {
+        logTaskProgress('Agent', 'storyboard-fix-rules', { violations: check.violations.length })
+        const fix = await runMessage(`导演规则检查发现 ${check.violations.length} 处问题：${JSON.stringify(check.violations).slice(0, 4000)}。请调用 read_storyboard_context 查看分镜，用 update_storyboard 逐个修正（需要插入新镜头时用 save_storyboards 追加并保持镜号顺序），修完调用 check_storyboard_rules 确认，最后回复「全部完成」。`)
+        absorb(fix)
+        result = { ...fix, toolCalls: merged.toolCalls, toolResults: merged.toolResults }
+      } else {
+        result = { ...result, toolCalls: merged.toolCalls, toolResults: merged.toolResults }
+      }
     }
 
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)

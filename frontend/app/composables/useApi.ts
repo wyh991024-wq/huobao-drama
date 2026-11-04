@@ -47,6 +47,7 @@ export const episodeAPI = {
   create: (data: any) => api.post('/episodes', data),
   update: (id: number, data: any) => api.put(`/episodes/${id}`, data),
   del: (id: number) => api.del(`/episodes/${id}`),
+  storyboardCheck: (id: number) => api.get(`/episodes/${id}/storyboard-check`),
   characters: (id: number) => api.get(`/episodes/${id}/characters`),
   scenes: (id: number) => api.get(`/episodes/${id}/scenes`),
   props: (id: number) => api.get(`/episodes/${id}/props`),

@@ -134,9 +134,21 @@ export const storyboards = sqliteTable('storyboards', {
   subtitleUrl: text('subtitle_url'),
   composedVideoUrl: text('composed_video_url'),
   status: text('status').default('pending'),
+  /** 导演参数 JSON（见 services/director.ts ShotSpec） */
+  shotSpec: text('shot_spec'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
+})
+
+/** 场记表：每集每场一份状态（见 services/director.ts SceneState） */
+export const sceneContinuity = sqliteTable('scene_continuity', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  episodeId: integer('episode_id').notNull(),
+  sceneCode: text('scene_code').notNull(),
+  state: text('state').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
 })
 
 export const storyboardCharacters = sqliteTable('storyboard_characters', {

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
 import { success, notFound, badRequest, now } from '../utils/response.js'
@@ -162,6 +163,11 @@ app.post('/:id/generate-video-prompts', async (c) => {
 app.get('/:id/video-prompts-status', async (c) => {
   const id = Number(c.req.param('id'))
   return success(c, getVideoPromptBatchStatus(id))
+})
+
+// GET /episodes/:id/storyboard-check — 分镜审阅关卡：导演规则检查
+app.get('/:id/storyboard-check', async (c) => {
+  return success(c, await checkEpisodeStoryboards(Number(c.req.param('id'))))
 })
 
 // GET /episodes/:episode_id/storyboards

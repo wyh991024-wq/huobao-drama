@@ -622,6 +622,35 @@
                       <span class="field-label">{{ t('episode.sb.descLabel') }} <span class="dim">({{ t('episode.sb.descHint') }})</span></span>
                       <textarea :value="selectedSb.description || ''" class="textarea" rows="7" @blur="updateField(selectedSb, 'description', $event.target.value)" :placeholder="t('episode.sb.descPlaceholder')" />
                     </label>
+                    <div v-if="selectedSpec" class="director-spec">
+                      <div class="director-spec-head">
+                        <span class="field-label">{{ t('episode.sb.directorSpec') }}</span>
+                        <span class="director-chip">{{ selectedSpec.shot_size || '—' }}</span>
+                        <span class="director-chip">{{ selectedSpec.camera_move || '—' }}{{ selectedSpec.move_speed ? ' · ' + selectedSpec.move_speed : '' }}</span>
+                        <span v-if="selectedSpec.purpose" class="director-chip is-purpose">{{ selectedSpec.purpose }}</span>
+                        <span v-if="selectedSpec.scene_code" class="dim">{{ selectedSpec.shot_id || selectedSpec.scene_code }}</span>
+                      </div>
+                      <dl class="director-spec-list">
+                        <template v-for="row in selectedSpecRows" :key="row.key">
+                          <dt>{{ row.label }}</dt><dd>{{ row.value }}</dd>
+                        </template>
+                      </dl>
+                      <ul v-if="selectedViolations.length" class="director-violations">
+                        <li v-for="(v, i) in selectedViolations" :key="i">{{ v.rule }}：{{ v.message }}</li>
+                      </ul>
+                    </div>
+                    <div class="director-check">
+                      <button class="btn btn-sm" :disabled="directorChecking" @click="runDirectorCheck">
+                        <Loader2 v-if="directorChecking" :size="11" class="animate-spin" />
+                        {{ t('episode.sb.directorCheck') }}
+                      </button>
+                      <span v-if="directorCheck" :class="['director-check-result', directorCheck.violations.length ? 'is-bad' : 'is-ok']">
+                        {{ directorCheck.violations.length ? t('episode.sb.directorViolations', { n: directorCheck.violations.length }) : t('episode.sb.directorOk', { n: directorCheck.shots }) }}
+                      </span>
+                    </div>
+                    <ul v-if="directorCheck && episodeViolations.length" class="director-violations">
+                      <li v-for="(v, i) in episodeViolations" :key="i">{{ v.shot ? t('episode.sb.shotN', { n: v.shot }) + ' · ' : '' }}{{ v.rule }}：{{ v.message }}</li>
+                    </ul>
                     <label class="field">
                       <span class="field-label">{{ t('episode.sb.atmosphere') }}</span>
                       <textarea :value="selectedSb.atmosphere || ''" class="textarea" rows="2" @blur="updateField(selectedSb, 'atmosphere', $event.target.value)" :placeholder="t('episode.sb.atmospherePlaceholder')" />
@@ -2665,6 +2694,41 @@ const selectedVideoTaskNumber = computed(() => {
   const index = videoTaskRows.value.findIndex(task => String(task.id) === String(selectedSb.value?.id))
   return index >= 0 ? index + 1 : 0
 })
+
+// ========== 分镜审阅关卡：导演参数与规则检查 ==========
+const directorCheck = ref(null)
+const directorChecking = ref(false)
+const selectedSpec = computed(() => {
+  const raw = selectedSb.value?.shot_spec
+  if (!raw) return null
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(raw) } catch { return null }
+})
+const selectedSpecRows = computed(() => {
+  const spec = selectedSpec.value
+  if (!spec) return []
+  const d = spec.dialogue
+  const rows = [
+    ['start', t('episode.sb.specStart'), spec.start_frame],
+    ['end', t('episode.sb.specEnd'), spec.end_frame],
+    ['action', t('episode.sb.specAction'), spec.action],
+    ['dialogue', t('episode.sb.specDialogue'), d?.text ? `${d.speaker || ''}${d.speaker_id ? '（' + d.speaker_id + '）' : ''}：${d.text}${d.tone ? '｜' + d.tone : ''}` : ''],
+    ['continuity', t('episode.sb.specContinuity'), spec.continuity_in],
+  ]
+  return rows.filter(r => r[2]).map(([key, label, value]) => ({ key, label, value }))
+})
+const selectedViolations = computed(() => {
+  const n = selectedSb.value?.storyboard_number ?? selectedSb.value?.storyboardNumber
+  return (directorCheck.value?.violations || []).filter(v => v.shot && v.shot === n)
+})
+const episodeViolations = computed(() => (directorCheck.value?.violations || []).filter(v => !v.shot))
+async function runDirectorCheck() {
+  if (!epId.value || directorChecking.value) return
+  directorChecking.value = true
+  try { directorCheck.value = await episodeAPI.storyboardCheck(epId.value) }
+  catch (e) { toastError(e) }
+  finally { directorChecking.value = false }
+}
 
 function updateField(sb, field, value) {
   const current = sb[field] ?? sb[toCamel(field)]
@@ -6083,6 +6147,18 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 }
 
 /* 任务触发按钮(顶栏) */
+.director-spec { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+.director-spec-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.director-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--bg-2, rgba(127,127,127,.12)); color: var(--text-2); }
+.director-chip.is-purpose { color: var(--accent, #f0883e); }
+.director-spec-list { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 12px; }
+.director-spec-list dt { color: var(--text-3); white-space: nowrap; }
+.director-spec-list dd { margin: 0; color: var(--text-1, inherit); }
+.director-check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.director-check-result { font-size: 12px; }
+.director-check-result.is-ok { color: var(--success, #3fb950); }
+.director-check-result.is-bad { color: var(--error, #e5484d); }
+.director-violations { margin: 4px 0 10px; padding-left: 18px; font-size: 12px; color: var(--error, #e5484d); }
 .gen-task-cancel { margin-left: auto; padding: 1px 8px; font-size: 11px; }
 .btn-danger-ghost { color: var(--error, #e5484d); border-color: color-mix(in srgb, var(--error, #e5484d) 40%, transparent); }
 .btn-danger-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--error, #e5484d) 12%, transparent); }

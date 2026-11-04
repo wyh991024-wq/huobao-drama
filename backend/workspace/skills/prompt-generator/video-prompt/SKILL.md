@@ -1,11 +1,11 @@
 ---
 name: video-prompt
-description: 视频提示词规范 — 为 3-5 秒的单镜头分镜生成视频提示词；MiniMax H3 使用官方六段式英文结构，其他模型使用中文单段格式
+description: 视频提示词规范 — 为 4-8 秒的单镜头分镜生成视频提示词；MiniMax H3 使用官方六段式英文结构，其他模型使用中文单段格式
 ---
 
 # 视频提示词（单镜头分镜 → video_prompt）
 
-根据分镜的 description / atmosphere / duration 生成 `video_prompt`。**一个分镜 = 一个 3-5 秒的连续镜头，内部不切镜、不跨场景、不闪回。**
+根据分镜的 description / atmosphere / duration 生成 `video_prompt`。**一个分镜 = 一个 4-8 秒的连续镜头，内部不切镜、不跨场景、不闪回。**
 
 ## 先判断视频模型
 
@@ -31,6 +31,17 @@ description: 视频提示词规范 — 为 3-5 秒的单镜头分镜生成视频
 - **台词**：写「角色名说：「台词」」并写明语气；不说话的角色写明「闭着嘴」；只取自 description，不新增
 - **无台词时**写环境音和动作音，让音频有内容
 - **固定结尾句**：「画面无字幕、无文字、无水印。」花字和字幕由后期添加
+
+## 导演参数与场记（有 shot_spec 时必须遵守）
+
+read_storyboard_context 返回的分镜带有 `shot_spec` 和 `continuity_at_start` 时：
+
+- **运镜**：只写 `camera_move` 对应 camera_moves 里的英文写法一种，配合 move_speed；不要再加别的运镜
+- **起止构图**：按 `start_frame` 写开场画面，按 `end_frame` 写结束画面，运镜由两者的构图差异体现
+- **主动作**：只写 `action` 这一个动作，写明终点
+- **场记锁定**：把 `continuity_at_start` 里每个出场角色的服装（outfit）、位置（position）、手持物（holding）、情绪（emotion）、朝向（facing），以及光线方向（lighting）写进画面描述；H3 格式写进 subject_definitions 与 detailed_description
+- **说话人编号**：台词的 `(Sx)` 用 `shot_spec.dialogue.speaker_id`，全剧固定，不要按本镜重新编号
+- **衔接**：开场画面要满足 `continuity_in`
 
 ## 第一视角（主观镜头）
 

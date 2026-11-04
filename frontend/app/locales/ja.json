@@ -726,7 +726,16 @@
       "batchDone": "動画プロンプトの一括生成が完了しました",
       "batchDoneFailed": "動画プロンプトの一括生成が完了しました（{n} 件失敗）",
       "batchFailed": "動画プロンプトの一括生成に失敗しました",
-      "promptGenerated": "分镜 #{n} の動画プロンプトを生成しました"
+      "promptGenerated": "分镜 #{n} の動画プロンプトを生成しました",
+      "directorSpec": "演出パラメータ",
+      "directorCheck": "演出ルールをチェック",
+      "directorViolations": "{n} 件の違反",
+      "directorOk": "{n} カットすべて合格",
+      "specStart": "開始画面",
+      "specEnd": "終了画面",
+      "specAction": "主な動作",
+      "specDialogue": "台詞",
+      "specContinuity": "つながり"
     },
     "ref": {
       "title": "参照素材",

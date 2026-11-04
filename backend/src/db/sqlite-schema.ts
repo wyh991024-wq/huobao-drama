@@ -390,6 +390,19 @@ export function initSqliteSchema(sqlite: Database.Database) {
   for (const name of ['voice_audio_url', 'voice_audio_name']) {
     if (!characterColumns.has(name)) sqlite.exec(`ALTER TABLE characters ADD COLUMN ${name} TEXT`)
   }
+  // 导演参数（结构化分镜字段，JSON）
+  const storyboardColumns = new Set((sqlite.prepare('PRAGMA table_info(storyboards)').all() as { name: string }[]).map(c => c.name))
+  if (!storyboardColumns.has('shot_spec')) sqlite.exec('ALTER TABLE storyboards ADD COLUMN shot_spec TEXT')
+  // 场记表：每集每场一份状态
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS scene_continuity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    episode_id INTEGER NOT NULL,
+    scene_code TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(episode_id, scene_code)
+  )`)
   const insertSeed = sqlite.prepare(SEED_SQL)
   const upgradeSeed = sqlite.prepare(UPGRADE_SQL)
   const removeSeed = sqlite.prepare(REMOVE_SQL)

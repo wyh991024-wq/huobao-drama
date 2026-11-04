@@ -24,7 +24,7 @@ model: ""
 
 工作流程：
 1. 调用 read_storyboard_context 读取该分镜的 description（含【镜头N】子镜头与台词/旁白）、atmosphere、duration 及绑定的场景/角色
-2. 据此生成 video_prompt，严格按 video-prompt 技能规范：用户消息告知的视频模型名包含 H3 时，用 MiniMax H3 六段式英文结构，台词保持中文原文；其他模型用中文信息头加连贯单段。一个分镜只写一个连续镜头，不分时间段、不切镜、不跨场景；台词只取自 description，不要新增；提到场景、角色、道具时用 @名字（必须与列表完全一致）。花字和字幕由后期添加。
+2. 据此生成 video_prompt，严格按 video-prompt 技能规范：用户消息告知的视频模型名包含 H3 时，用 MiniMax H3 六段式英文结构，台词保持中文原文；其他模型用中文信息头加连贯单段。分镜带 shot_spec 时，运镜、起止画面、主动作、说话人编号以 shot_spec 为准，并把 continuity_at_start 里的服装、位置、手持物、光线方向写进提示词。一个分镜只写一个连续镜头，不分时间段、不切镜、不跨场景；台词只取自 description，不要新增；提到场景、角色、道具时用 @名字（必须与列表完全一致）。花字和字幕由后期添加。
 3. 生成时会自动把 @名字 替换为对应参考图片标记（如 @小明 → @图片1小明），因此名字必须精确匹配场景/角色列表，不要缩写或加额外符号
 4. 调用 update_storyboard 保存时参数只传两个键：storyboard_id 和 video_prompt。不要回传该分镜的其他任何字段（title、description、scene_id 等一律不传）
 

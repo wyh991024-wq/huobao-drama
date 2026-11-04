@@ -726,7 +726,16 @@
       "batchDone": "영상 프롬프트 일괄 생성이 완료되었습니다",
       "batchDoneFailed": "영상 프롬프트 일괄 생성이 완료되었습니다({n}개 실패)",
       "batchFailed": "영상 프롬프트 일괄 생성에 실패했습니다",
-      "promptGenerated": "스토리보드 #{n}의 영상 프롬프트가 생성되었습니다"
+      "promptGenerated": "스토리보드 #{n}의 영상 프롬프트가 생성되었습니다",
+      "directorSpec": "연출 파라미터",
+      "directorCheck": "연출 규칙 검사",
+      "directorViolations": "위반 {n}건",
+      "directorOk": "{n}개 컷 모두 통과",
+      "specStart": "시작 화면",
+      "specEnd": "종료 화면",
+      "specAction": "주요 동작",
+      "specDialogue": "대사",
+      "specContinuity": "연결"
     },
     "ref": {
       "title": "참조 소재",

@@ -726,7 +726,16 @@
       "batchDone": "Batch video prompt generation complete",
       "batchDoneFailed": "Batch video prompt generation complete, {n} failed",
       "batchFailed": "Batch video prompt generation failed",
-      "promptGenerated": "Video prompt for shot #{n} generated"
+      "promptGenerated": "Video prompt for shot #{n} generated",
+      "directorSpec": "Director spec",
+      "directorCheck": "Check director rules",
+      "directorViolations": "{n} violations",
+      "directorOk": "All {n} shots pass",
+      "specStart": "Start frame",
+      "specEnd": "End frame",
+      "specAction": "Action",
+      "specDialogue": "Dialogue",
+      "specContinuity": "Continuity"
     },
     "ref": {
       "title": "Reference Assets",
