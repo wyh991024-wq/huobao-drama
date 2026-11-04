@@ -180,8 +180,10 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
     const fps = Number(settings.fps) > 0 ? Number(settings.fps) : (h3 ? 24 : 16)
     const duration = Number(record.duration) > 0 ? Number(record.duration) : 5
     const dims = resolveDimensions(record.resolution, record.aspectRatio, h3 ? 32 : 16)
-    const width = Number(settings.width) > 0 ? Number(settings.width) : dims.width
-    const height = Number(settings.height) > 0 ? Number(settings.height) : dims.height
+    let width = Number(settings.width) > 0 ? Number(settings.width) : dims.width
+    let height = Number(settings.height) > 0 ? Number(settings.height) : dims.height
+    // 配置里的固定宽高只定尺寸档位，横竖跟随项目画幅（竖屏剧 1344x768 → 768x1344）
+    if ((dims.height > dims.width) !== (height > width) && width !== height) [width, height] = [height, width]
     const seed = record.seed != null && Number.isFinite(Number(record.seed))
       ? Number(record.seed)
       : Math.floor(Math.random() * 2 ** 48)
