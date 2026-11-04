@@ -69,6 +69,13 @@ export async function buildKeyframeRequest(storyboardId: number, kind: KeyframeK
     continuity = continuityAtShot(base, kind === 'last' ? [...previous, spec] : previous)
   }
 
+  // 只放这一帧里真正出现的角色：起止画面里写到名字（中文名或定妆提示词里的英文名）的才算；一个都对不上时退回全部绑定角色。
+  // 否则"从天而降"的人会提前站在首帧里，模型还容易把同一个人画两遍
+  const frameText = kind === 'first' ? (spec?.start_frame || sb.description || '') : (spec?.end_frame || sb.result || '')
+  const englishName = (c: typeof chars[number]) => (c.finalPrompt || '').match(/Character: ([A-Z][A-Za-z]+)/)?.[1]
+  const mentioned = chars.filter(c => [c.name, englishName(c)].some(n => n && frameText.includes(n)))
+  const visible = mentioned.length ? mentioned : chars
+
   // 参考图：本镜首帧（生成尾帧时）/ 上一镜尾帧（生成首帧且同场时）→ 角色 → 场景 → 道具
   const references: string[] = []
   const push = (url?: string | null) => { if (url && !references.includes(url)) references.push(url) }
@@ -76,18 +83,17 @@ export async function buildKeyframeRequest(storyboardId: number, kind: KeyframeK
   const prev = shots[idx - 1]
   const prevSpec = prev ? parseShotSpec(prev.shotSpec) : null
   if (kind === 'first' && prev && prevSpec?.scene_code && prevSpec.scene_code === spec?.scene_code) push(prev.lastFrameImage || prev.firstFrameImage)
-  for (const c of chars) push(c.imageUrl)
+  for (const c of visible) push(c.imageUrl)
   push(scene?.imageUrl)
   for (const p of props) push(p.imageUrl)
 
   const style = await getDramaStylePrompt(ep.dramaId)
-  const frameText = kind === 'first' ? (spec?.start_frame || sb.description || '') : (spec?.end_frame || sb.result || '')
   const ratio = drama?.aspectRatio || '16:9'
   const refNote = references.length
     ? `参考图依次为：${[
       kind === 'last' && sb.firstFrameImage ? '本镜首帧（保持人物、服装、光线一致）' : '',
       kind === 'first' && prev && references[0] === (prev.lastFrameImage || prev.firstFrameImage) ? '上一镜结束画面（保持衔接）' : '',
-      ...chars.filter(c => c.imageUrl).map(c => `${c.name}的定妆图`),
+      ...visible.filter(c => c.imageUrl).map(c => `${c.name}的定妆图`),
       scene?.imageUrl ? `场景「${scene.location}」` : '',
       ...props.filter(p => p.imageUrl).map(p => `道具「${p.name}」`),
     ].filter(Boolean).join('、')}。`
@@ -97,7 +103,8 @@ export async function buildKeyframeRequest(storyboardId: number, kind: KeyframeK
     `电影分镜关键帧（${kind === 'first' ? '镜头开始' : '镜头结束'}的一帧），${SHOT_SIZE_ZH[spec?.shot_size || ''] || '中景'}构图，画幅 ${ratio}。`,
     `画面：${frameText}`,
     continuity ? `场景：${continuity.location || scene?.location || ''}，${continuity.time_of_day || scene?.time || ''}；光线：${continuity.lighting || scene?.lighting || ''}` : (scene ? `场景：${scene.location}，${scene.time || ''}` : ''),
-    ...(continuity ? ['人物状态：', ...stateLines(continuity, chars.map(c => c.name))] : []),
+    ...(continuity ? ['人物状态：', ...stateLines(continuity, visible.map(c => c.name))] : []),
+    visible.length ? `画面中只有：${visible.map(c => c.name).join('、')}，每个人只出现一次，不要出现其他人物，不要重复画同一个人。` : '',
     refNote,
     '人物的脸、发型、服装与定妆图一致，场景与参考图一致。单一画面的电影剧照，构图清晰；不要拼图、分格或三视图，不要任何文字、字幕或水印。',
   ].filter(Boolean).join('\n')
