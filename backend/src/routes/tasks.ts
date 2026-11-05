@@ -6,6 +6,7 @@ import { cancelTask, generateImage, generateVideo, recoverVideoTask } from '../s
 import { safeTaskError } from '../services/video-download.js'
 import { getActiveConfig, getConfigById } from '../services/ai.js'
 import { getDramaStylePrompt } from '../services/style-preset.js'
+import { keyframesEnabled } from '../services/keyframes.js'
 import { resolveStoryboardVoiceReferences } from '../services/character-voice-references.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 
@@ -178,6 +179,13 @@ app.post('/', async (c) => {
         if (type === 'video' && ep?.resolution) episodeResolution = ep.resolution
         storyboardDramaId = ep?.dramaId ?? undefined
       }
+    }
+
+    // 关键帧是可选功能：项目没启用时，分镜视频一律走纯参考图，忽略首尾帧
+    if (type === 'video' && videoBody && body.storyboard_id && (videoBody.first_frame_url || videoBody.last_frame_url)
+      && !videoBody.official_media.length && !(await keyframesEnabled(body.drama_id ?? storyboardDramaId))) {
+      videoBody.first_frame_url = undefined
+      videoBody.last_frame_url = undefined
     }
 
     if (type === 'video' && videoBody) {

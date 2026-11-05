@@ -503,8 +503,9 @@
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   {{ t('episode.recovery.restoreFailed', { n: recoverableVideoCount }) }}
                 </button>
-                <button class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchFirstHint')" @click="batchKeyframes('first')">{{ t('episode.kf.batchFirst') }}</button>
-                <button class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchLastHint')" @click="batchKeyframes('last')">{{ t('episode.kf.batchLast') }}</button>
+                <button class="btn btn-sm" :class="{ 'is-on': keyframesEnabled }" :title="t('episode.kf.toggleHint')" @click="toggleKeyframes">{{ keyframesEnabled ? t('episode.kf.toggleOn') : t('episode.kf.toggleOff') }}</button>
+                <button v-if="keyframesEnabled" class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchFirstHint')" @click="batchKeyframes('first')">{{ t('episode.kf.batchFirst') }}</button>
+                <button v-if="keyframesEnabled" class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchLastHint')" @click="batchKeyframes('last')">{{ t('episode.kf.batchLast') }}</button>
                 <button class="btn btn-sm" :disabled="!sbs.length || enhanceBatching" :title="t('episode.enhance.batchHint')" @click="batchEnhance">{{ t('episode.enhance.batch') }}</button>
                 <button class="btn btn-sm" :class="{ 'is-on': videoSelectMode }" @click="toggleVideoSelectMode">
                   {{ videoSelectMode ? t('episode.vid.selectDone', { n: selectedVideoSbIds.length }) : t('episode.vid.select') }}
@@ -625,7 +626,7 @@
                       <span class="field-label">{{ t('episode.sb.descLabel') }} <span class="dim">({{ t('episode.sb.descHint') }})</span></span>
                       <textarea :value="selectedSb.description || ''" class="textarea" rows="7" @blur="updateField(selectedSb, 'description', $event.target.value)" :placeholder="t('episode.sb.descPlaceholder')" />
                     </label>
-                    <div class="keyframe-panel">
+                    <div v-if="keyframesEnabled" class="keyframe-panel">
                       <div class="keyframe-panel-head">
                         <span class="field-label">{{ t('episode.kf.title') }}</span>
                         <span class="dim">{{ t('episode.kf.hint') }}</span>
@@ -2769,7 +2770,22 @@ async function batchEnhance() {
   finally { enhanceBatching.value = false }
 }
 
-// ========== 关卡 3：关键帧 ==========
+// ========== 关卡 3：关键帧（可选功能，默认关闭，开关存项目 metadata.keyframes_enabled） ==========
+function dramaMeta() {
+  const raw = drama.value?.metadata
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(raw) || {} } catch { return {} }
+}
+const keyframesEnabled = computed(() => dramaMeta().keyframes_enabled === true)
+async function toggleKeyframes() {
+  if (!drama.value) return
+  const metadata = JSON.stringify({ ...dramaMeta(), keyframes_enabled: !keyframesEnabled.value })
+  try {
+    await dramaAPI.update(dramaId, { metadata })
+    drama.value = { ...drama.value, metadata }
+  } catch (e) { toastError(e) }
+}
 const keyframeCount = ref(2)
 const keyframeData = ref(null)
 const keyframeBusy = reactive({ first: false, last: false })
@@ -3640,8 +3656,8 @@ async function genVid(sb, opts = {}) {
   // 关卡 3 选中的关键帧：有首帧时视频走首尾帧模式
   const firstFrame = sb.first_frame_image || sb.firstFrameImage
   const lastFrame = sb.last_frame_image || sb.lastFrameImage
-  if (firstFrame) params.first_frame_url = firstFrame
-  if (firstFrame && lastFrame) params.last_frame_url = lastFrame
+  if (keyframesEnabled.value && firstFrame) params.first_frame_url = firstFrame
+  if (keyframesEnabled.value && firstFrame && lastFrame) params.last_frame_url = lastFrame
   if (!params.prompt && !referenceImages.length) {
     toast.error(t('episode.vid.needRefOrPrompt'))
     return

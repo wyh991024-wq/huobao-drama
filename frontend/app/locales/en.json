@@ -944,7 +944,10 @@
       "batchLastHint": "Generate last-frame candidates for moving shots without one",
       "batchFirstConfirm": "Generate {n} first-frame candidates for every shot without one? Billed by the current image model.",
       "batchLastConfirm": "Generate {n} last-frame candidates for moving shots without one? Billed by the current image model.",
-      "batchStarted": "Started candidates for {n} shots"
+      "batchStarted": "Started candidates for {n} shots",
+      "toggleOn": "Keyframes: on",
+      "toggleOff": "Keyframes: off",
+      "toggleHint": "Optional: when on, shots can use generated first/last frames to constrain the video; when off, videos use reference images only and the model composes freely"
     },
     "enhance": {
       "one": "Upscale + interpolate",

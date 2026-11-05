@@ -14,6 +14,13 @@ import { getDramaStylePrompt } from './style-preset.js'
 import { continuityAtShot, parseShotSpec, type SceneState, type ShotSpec } from './director.js'
 
 export type KeyframeKind = 'first' | 'last'
+
+/** 项目是否启用关键帧（首尾帧）。可选功能，默认关闭：千问出的关键帧会限制视频模型的构图和动作，默认走纯参考图 */
+export async function keyframesEnabled(dramaId: number | null | undefined): Promise<boolean> {
+  if (!dramaId) return false
+  const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, dramaId))
+  try { return JSON.parse(drama?.metadata || '{}')?.keyframes_enabled === true } catch { return false }
+}
 const FRAME_TYPE: Record<KeyframeKind, string> = { first: 'first_frame', last: 'last_frame' }
 const SHOT_SIZE_ZH: Record<string, string> = { CU: '特写', MCU: '近景', MS: '中景', MWS: '中全景', WS: '全景', EWS: '大远景' }
 export const SIZE_BY_RATIO: Record<string, string> = { '16:9': '1920x1080', '9:16': '1080x1920', '1:1': '1024x1024', '4:3': '1440x1080', '3:4': '1080x1440' }
@@ -157,6 +164,8 @@ export async function selectKeyframe(storyboardId: number, kind: KeyframeKind, i
 
 /** 整集批量：首帧给所有分镜；尾帧只给有运镜或明显动作的分镜（camera_move 不是 STATIC） */
 export async function batchKeyframes(episodeId: number, kind: KeyframeKind, count: number, opts: { configId?: number; model?: string; onlyMissing?: boolean } = {}) {
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
+  if (!(await keyframesEnabled(ep?.dramaId))) throw new Error('本项目未启用关键帧，请先在分镜页打开「关键帧」开关')
   const shots = await episodeShots(episodeId)
   const targets = shots.filter(sb => {
     if (opts.onlyMissing !== false && (kind === 'first' ? sb.firstFrameImage : sb.lastFrameImage)) return false
