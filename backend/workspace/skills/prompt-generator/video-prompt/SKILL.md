@@ -1,11 +1,11 @@
 ---
 name: video-prompt
-description: 视频提示词规范 — 为 4-8 秒的单镜头分镜生成视频提示词；MiniMax H3 使用官方六段式英文结构，其他模型使用中文单段格式
+description: 视频提示词规范 — 为 5-8 秒的单镜头分镜生成视频提示词；MiniMax H3 使用官方六段式英文结构，其他模型使用中文单段格式
 ---
 
 # 视频提示词（单镜头分镜 → video_prompt）
 
-根据分镜的 description / atmosphere / duration 生成 `video_prompt`。**一个分镜 = 一个 4-8 秒的连续镜头，内部不切镜、不跨场景、不闪回。**
+根据分镜的 description / atmosphere / duration 生成 `video_prompt`。**一个分镜 = 一个 5-8 秒的连续镜头，内部不切镜、不跨场景、不闪回。**
 
 ## 先判断视频模型
 

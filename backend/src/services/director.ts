@@ -150,12 +150,14 @@ export function checkStoryboardRules(shots: RuleShot[], opts: { pov?: boolean } 
       out.push({ shot: shot.n, rule: '动作衔接', message: '缺少 continuity_in（与上一镜 end_frame 一致的要素）' })
     }
 
-    // 规则 7：时长 4-8 秒；对白镜时长 ≥ 字数 × 0.25 + 1
-    if (shot.duration < 4 || shot.duration > 8) out.push({ shot: shot.n, rule: '时长', message: `时长 ${shot.duration} 秒，应在 4-8 秒` })
-    if (isDialogue(spec)) {
-      const chars = spec.dialogue!.text!.replace(/[\s，。！？、…,.!?「」"'“”]/g, '').length
-      const need = Math.ceil(chars * 0.25 + 1)
-      if (shot.duration < need) out.push({ shot: shot.n, rule: '对白时长', message: `台词 ${chars} 字需要至少 ${need} 秒，当前 ${shot.duration} 秒` })
+    // 规则 7：时长 5-8 秒；对白镜时长 ≥ 字数 × 0.25 + 1，台词长的镜头上限放宽到台词所需（最多 12 秒，再长就该拆镜）
+    const dialogueChars = isDialogue(spec) ? spec.dialogue!.text!.replace(/[\s，。！？、…,.!?「」"'“”]/g, '').length : 0
+    const need = dialogueChars ? Math.ceil(dialogueChars * 0.25 + 1) : 0
+    const maxDuration = Math.min(12, Math.max(8, need))
+    if (shot.duration < 5 || shot.duration > maxDuration) out.push({ shot: shot.n, rule: '时长', message: `时长 ${shot.duration} 秒，应在 5-${maxDuration} 秒` })
+    if (dialogueChars) {
+      if (need > 12) out.push({ shot: shot.n, rule: '对白时长', message: `台词 ${dialogueChars} 字需要 ${need} 秒，超过单镜 12 秒上限，应拆成两镜或删减台词` })
+      else if (shot.duration < need) out.push({ shot: shot.n, rule: '对白时长', message: `台词 ${dialogueChars} 字需要至少 ${need} 秒，当前 ${shot.duration} 秒` })
     }
 
     // 规则 8：每场结尾给情绪落点，不以对白直接切场

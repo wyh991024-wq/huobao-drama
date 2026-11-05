@@ -564,7 +564,7 @@ const saveSceneContinuity = createTool({
 
 const checkStoryboardRulesTool = createTool({
   id: 'check_storyboard_rules',
-  description: 'Check all saved storyboards of this episode against the director rules (one camera move, shot-size rotation, establishing shot, reaction shots, continuity_in, 4-8s duration, dialogue duration, emotional ending per scene, reveal shot). Returns violations to fix with update_storyboard / save_storyboards.',
+  description: 'Check all saved storyboards of this episode against the director rules (one camera move, shot-size rotation, establishing shot, reaction shots, continuity_in, 5-8s duration, dialogue duration, emotional ending per scene, reveal shot). Returns violations to fix with update_storyboard / save_storyboards.',
   inputSchema: z.object({}),
   execute: async (_input, context) => {
     const ids = requireIds(context)
