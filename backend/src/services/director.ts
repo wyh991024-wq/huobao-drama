@@ -12,19 +12,19 @@ export type ShotSize = typeof SHOT_SIZES[number]
 
 /** 运镜模板库：每镜只选一个，H3 提示词使用对应英文写法 */
 export const CAMERA_MOVES: Record<string, { name: string; h3: string; use: string }> = {
-  STATIC: { name: '固定', h3: 'camera locked', use: '对白、表演为主' },
-  PUSH_SLOW: { name: '慢推', h3: 'slow push-in from medium to close-up', use: '情绪积累、内心变化' },
-  PUSH_FAST: { name: '急推', h3: 'fast push-in to extreme close-up', use: '揭示、震惊' },
-  PULL: { name: '拉远', h3: 'slow pull-back revealing the room', use: '孤独、揭示环境' },
-  TRUCK: { name: '横移', h3: 'camera trucks left alongside her', use: '跟随行走、展示空间' },
-  FOLLOW: { name: '背跟', h3: 'camera follows behind her at shoulder height', use: '进入新空间' },
-  CRANE_UP: { name: '升', h3: 'camera cranes up and away', use: '结尾、抽离' },
-  CRANE_DOWN: { name: '降', h3: 'camera cranes down into the scene', use: '开场建立' },
-  ORBIT: { name: '半环绕', h3: 'slow half orbit around them', use: '关系确立、高光时刻' },
-  TILT: { name: '摇', h3: 'slow tilt up from her shoes to her face', use: '角色登场' },
+  STATIC: { name: '固定', h3: 'the camera holds a static shot', use: '对白、表演为主' },
+  PUSH_SLOW: { name: '慢推', h3: 'the camera pushes in with small amplitude at slow speed', use: '情绪积累、内心变化' },
+  PUSH_FAST: { name: '急推', h3: 'the camera pushes in with large amplitude at fast speed', use: '揭示、震惊' },
+  PULL: { name: '拉远', h3: 'the camera pulls out at slow speed, revealing the surroundings', use: '孤独、揭示环境' },
+  TRUCK: { name: '横移', h3: 'the camera trucks left at slow speed alongside the subject', use: '跟随行走、展示空间' },
+  FOLLOW: { name: '背跟', h3: 'a tracking shot follows behind the subject at shoulder height', use: '进入新空间' },
+  CRANE_UP: { name: '升', h3: 'the camera pedestals up at slow speed', use: '结尾、抽离' },
+  CRANE_DOWN: { name: '降', h3: 'the camera pedestals down at slow speed into the scene', use: '开场建立' },
+  ORBIT: { name: '半环绕', h3: 'an arc shot moves around the subjects with small amplitude at slow speed', use: '关系确立、高光时刻' },
+  TILT: { name: '摇', h3: 'the camera tilts up at slow speed', use: '角色登场' },
   RACK: { name: '变焦点', h3: 'rack focus from foreground object to her face', use: '信息转移' },
-  HANDHELD: { name: '手持', h3: 'subtle handheld shake', use: '紧张、混乱' },
-  WHIP: { name: '甩镜', h3: 'quick whip pan to the right', use: '转场、喜剧节奏' },
+  HANDHELD: { name: '手持', h3: 'the camera shakes slightly', use: '紧张、混乱' },
+  WHIP: { name: '甩镜', h3: 'the camera pans right with large amplitude at fast speed', use: '转场、喜剧节奏' },
   DOLLY_ZOOM: { name: '希区柯克变焦', h3: 'dolly zoom', use: '只用于全集最大反转' },
 }
 

@@ -505,6 +505,7 @@
                 </button>
                 <button class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchFirstHint')" @click="batchKeyframes('first')">{{ t('episode.kf.batchFirst') }}</button>
                 <button class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchLastHint')" @click="batchKeyframes('last')">{{ t('episode.kf.batchLast') }}</button>
+                <button class="btn btn-sm" :disabled="!sbs.length || enhanceBatching" :title="t('episode.enhance.batchHint')" @click="batchEnhance">{{ t('episode.enhance.batch') }}</button>
                 <button class="btn btn-sm" :class="{ 'is-on': videoSelectMode }" @click="toggleVideoSelectMode">
                   {{ videoSelectMode ? t('episode.vid.selectDone', { n: selectedVideoSbIds.length }) : t('episode.vid.select') }}
                 </button>
@@ -903,6 +904,14 @@
                     @click="genVid(selectedSb)"
                   >
                     {{ videoTaskActionLabel(selectedSb) }}
+                  </button>
+                  <button
+                    class="btn video-inspector-action"
+                    :disabled="!hasVid(selectedSb) || isPendingVideo(selectedSb?.id) || enhancingIds.includes(selectedSb?.id)"
+                    :title="t('episode.enhance.hint')"
+                    @click="enhanceVid(selectedSb)"
+                  >
+                    {{ t('episode.enhance.one') }}
                   </button>
                 </div>
               </aside>
@@ -2733,6 +2742,32 @@ const selectedVideoTaskNumber = computed(() => {
   const index = videoTaskRows.value.findIndex(task => String(task.id) === String(selectedSb.value?.id))
   return index >= 0 ? index + 1 : 0
 })
+
+// ========== 成片增强：超分＋补帧（定稿后再做，很慢） ==========
+const enhancingIds = ref([])
+const enhanceBatching = ref(false)
+async function enhanceVid(sb) {
+  if (!sb || enhancingIds.value.includes(sb.id)) return
+  if (!window.confirm(t('episode.enhance.confirmOne'))) return
+  enhancingIds.value.push(sb.id)
+  try {
+    await storyboardAPI.enhance(sb.id)
+    toast.success(t('episode.enhance.started', { n: 1 }))
+    await refresh()
+  } catch (e) { toastError(e) }
+  finally { enhancingIds.value = enhancingIds.value.filter(id => id !== sb.id) }
+}
+async function batchEnhance() {
+  if (!epId.value || enhanceBatching.value) return
+  if (!window.confirm(t('episode.enhance.confirmBatch'))) return
+  enhanceBatching.value = true
+  try {
+    const res = await episodeAPI.enhance(epId.value)
+    toast.success(t('episode.enhance.started', { n: (res?.started || []).length }))
+    await refresh()
+  } catch (e) { toastError(e) }
+  finally { enhanceBatching.value = false }
+}
 
 // ========== 关卡 3：关键帧 ==========
 const keyframeCount = ref(2)

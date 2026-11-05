@@ -50,6 +50,8 @@ interface ComfySettings {
   workflow?: Workflow | string
   /** 有首帧（关键帧）时使用的工作流，如 H3 首尾帧（MiniMaxH3ImageToVideo） */
   keyframeWorkflow?: Workflow | string
+  /** 成片增强（超分＋补帧）工作流，输入视频用 {{video}} 占位，如 SeedVR2 + RIFE */
+  enhanceWorkflow?: Workflow | string
   negativePrompt?: string
   fps?: number
   width?: number
@@ -109,8 +111,13 @@ export function miniMaxH3FramesFor(duration: number, fps: number): number {
 }
 
 /** 工作台按云端 API 写法输出 @图片1、音色参考音频1；本地 H3 文本编码器使用 <Picture i> / <Audio j> 标签 */
+/** 官方要求 <d> 里先写语言标签；没写的中文台词补上 [Chinese] */
+export function tagDialogueLanguage(prompt: string): string {
+  return prompt.replace(/<d>(?!\s*\[)(?=[^<]*[一-鿿])/g, '<d>[Chinese] ')
+}
+
 export function toMiniMaxH3Tags(prompt: string): string {
-  return prompt
+  return tagDialogueLanguage(prompt)
     .replace(/@图片(\d+)\s*/g, '<Picture $1> ')
     .replace(/音色参考音频(\d+)/g, '<Audio $1>')
 }
@@ -141,17 +148,32 @@ export function toMiniMaxH3KeyframePrompt(prompt: string, opts: { hasLast: boole
     const m = line.match(/<Subject (\d+)>\s+is\s+(.+?)(?:\s+shown in\b|,|$)/i)
     if (m) names[m[1]] = m[2].trim()
   }
-  // 参考图式的 integrated_multimodal_description：首尾帧模式下图片是首/尾帧，删掉参考图定义与"本镜角色/场景"句
+  // 参考图式的 integrated_multimodal_description：首尾帧模式下图片是首/尾帧，删掉参考图定义与"本镜角色/场景"句。
+  // 画风句也删：官方要求关键帧任务的风格取自首帧图本身，长画风句只会和图打架
   let text = body.trim()
-    .split('\n').filter(l => !/^\s*Reference setup\./i.test(l)).join('\n')
+    .split('\n').filter(l => !/^\s*(Reference setup\.|Overall scene:|Visual style:)/i.test(l)).join('\n')
     .replace(/\s*Characters in this shot:[^\n.]*\./gi, '')
     .replace(/<Subject (\d+)>/g, (_x, n) => names[n] || 'the subject')
   text = stripRefs(text)
-  text = text.replace(/\[Shot 1\]\s*/, '[Shot 1] The shot begins exactly from the composition, character positions, and lighting established by Picture 1. ')
-  if (opts.hasLast) text = text.replace(/\s*$/, ' By the end of the shot, the action and camera settle into the pose, spacing, and composition established by Picture 2.')
+  // 官方写法：第一镜不写时间戳；起止标签改成自然句
+  text = text
+    .replace(/\[Shot 1\]\s*\d+(?:\.\d+)?s\s*[–-]\s*\d+(?:\.\d+)?s\.\s*/, '[Shot 1] ')
+    .replace(/\bStarts on:\s*/g, 'It opens on ')
+    .replace(/\bAction:\s*/g, 'Then ')
+    .replace(/\bEnds on:\s*/g, 'By the end of the shot, ')
+  // 首帧锚定（官方 I2VA / FL2VA 示例句式）：风格、人物外貌服装位置、场景布局都以图为准
+  const anchor = opts.hasLast
+    ? 'In the same visual style as Picture 1, the shot begins in the position and framing established by Picture 1, preserving every character\'s appearance, clothing and position and the layout of the scene. '
+    : 'In the same visual style as <Picture 1>, the shot begins exactly as shown in <Picture 1>, preserving every character\'s appearance, clothing and position and the layout of the scene. '
+  // 六段式里 [Shot 1] 前面的光线句挪进镜头内、锚定句之后
+  const at = text.indexOf('[Shot 1]')
+  const lead = at > 0 ? text.slice(0, at).trim() : ''
+  const rest = at >= 0 ? text.slice(at).replace(/^\[Shot 1\]\s*/, '') : text
+  text = `[Shot 1] ${anchor}${lead ? lead + ' ' : ''}${rest}`
+  if (opts.hasLast) text = text.replace(/\s*$/, ' At the end of the shot, everything settles into the pose, spacing, and composition established by Picture 2.')
   const soundscape = (sections.overall_soundscape || '').trim() || 'Quiet ambient room tone.'
   const music = (sections.non_diegetic_music || '').trim() || 'N/A'
-  return `${instruction}\n\nintegrated_multimodal_description: ${text.replace(/\n+/g, ' ')}\n\noverall_soundscape: ${soundscape}\n\nnon_diegetic_music: ${music}`
+  return `${instruction}\n\nintegrated_multimodal_description: ${tagDialogueLanguage(text.replace(/\n+/g, ' '))}\n\noverall_soundscape: ${soundscape}\n\nnon_diegetic_music: ${music}`
 }
 
 const isH3Node = (node: WorkflowNode) => /MiniMaxH3/.test(node.class_type || '')
@@ -166,9 +188,15 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
 
   async prepareGenerateRequest(config: AIConfig, record: VideoGenerationRecord): Promise<ProviderRequest> {
     const settings = this.settingsOf(config)
-    const keyframeMode = !!(record.firstFrameUrl && settings.keyframeWorkflow)
-    const workflow = this.loadWorkflow(keyframeMode ? { ...settings, workflow: settings.keyframeWorkflow } : settings)
-    const autoFill = settings.autoFill !== false
+    // 成片增强（超分＋补帧）：输入是已生成的视频（referenceVideoUrls[0] → {{video}}），走 enhanceWorkflow
+    const enhanceMode = record.referenceMode === 'enhance'
+    if (enhanceMode && !settings.enhanceWorkflow) throw new Error('该 ComfyUI 配置没有设置成片增强工作流（enhanceWorkflow）')
+    const keyframeMode = !enhanceMode && !!(record.firstFrameUrl && settings.keyframeWorkflow)
+    const workflow = this.loadWorkflow(enhanceMode
+      ? { ...settings, workflow: settings.enhanceWorkflow }
+      : keyframeMode ? { ...settings, workflow: settings.keyframeWorkflow } : settings)
+    // 增强工作流参数是写死的（如 SeedVR2 的 seed 上限 2^32），不做自动填充
+    const autoFill = settings.autoFill !== false && !enhanceMode
 
     const negativePrompt = (settings.negativePrompt || '').trim()
     const h3 = Object.values(workflow).some(isH3Node)
@@ -400,6 +428,8 @@ export class ComfyUIVideoAdapter implements VideoProviderAdapter {
         const items = Array.isArray(out[key]) ? out[key] : []
         for (const item of items) {
           if (!item?.filename) continue
+          // LoadVideo 等加载节点会把输入文件作为预览输出（type=input），不是生成结果
+          if (item.type === 'input') continue
           const ext = path.extname(String(item.filename)).toLowerCase()
           const isVideoExt = VIDEO_EXTS.has(ext)
           const isVideoFormat = typeof item.format === 'string' && item.format.startsWith('video/')

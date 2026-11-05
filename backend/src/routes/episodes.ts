@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { batchKeyframes } from '../services/keyframes.js'
+import { enhanceEpisodeVideos } from '../services/enhance.js'
 import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
@@ -164,6 +165,12 @@ app.post('/:id/generate-video-prompts', async (c) => {
 app.get('/:id/video-prompts-status', async (c) => {
   const id = Number(c.req.param('id'))
   return success(c, getVideoPromptBatchStatus(id))
+})
+
+// POST /episodes/:id/enhance { config_id? } — 整集成片增强：最新视频还没增强过的分镜逐个提交
+app.post('/:id/enhance', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  try { return success(c, await enhanceEpisodeVideos(Number(c.req.param('id')), { configId: body.config_id || undefined })) } catch (e: any) { return badRequest(c, e.message) }
 })
 
 // POST /episodes/:id/keyframes { kind, count, only_missing, config_id?, model? } — 整集批量生成候选关键帧

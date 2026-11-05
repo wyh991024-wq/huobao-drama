@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { generateKeyframeCandidates, listKeyframes, selectKeyframe } from '../services/keyframes.js'
+import { enhanceStoryboardVideo } from '../services/enhance.js'
 import { eq } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
 import { success, created, now, badRequest } from '../utils/response.js'
@@ -181,6 +182,12 @@ app.post('/:id/keyframes/select', async (c) => {
   const kind = body.kind === 'last' ? 'last' : 'first'
   await selectKeyframe(Number(c.req.param('id')), kind, body.image || null)
   return success(c)
+})
+
+// POST /storyboards/:id/enhance { config_id? } — 成片增强（超分＋补帧），结果作为新的视频任务
+app.post('/:id/enhance', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  try { return success(c, await enhanceStoryboardVideo(Number(c.req.param('id')), { configId: body.config_id || undefined })) } catch (e: any) { return badRequest(c, e.message) }
 })
 
 // DELETE /storyboards/:id

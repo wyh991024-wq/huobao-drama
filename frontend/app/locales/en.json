@@ -945,6 +945,15 @@
       "batchFirstConfirm": "Generate {n} first-frame candidates for every shot without one? Billed by the current image model.",
       "batchLastConfirm": "Generate {n} last-frame candidates for moving shots without one? Billed by the current image model.",
       "batchStarted": "Started candidates for {n} shots"
+    },
+    "enhance": {
+      "one": "Upscale + interpolate",
+      "batch": "Batch upscale",
+      "hint": "Upscale (short side 1080) and interpolate (24→48fps) the current video, keeping its audio; saved as a new version",
+      "batchHint": "Upscale and interpolate every shot whose latest video is not enhanced yet",
+      "confirmOne": "Upscale and interpolate this shot? About 4-5 minutes per 5-second shot; best done after the shot is final.",
+      "confirmBatch": "Upscale and interpolate every shot not enhanced yet? About 4-5 minutes per 5-second shot.",
+      "started": "Submitted {n} enhancement tasks"
     }
   },
   "errors": {

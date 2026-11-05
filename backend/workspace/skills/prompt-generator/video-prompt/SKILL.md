@@ -43,6 +43,46 @@ read_storyboard_context 返回的分镜带有 `shot_spec` 和 `continuity_at_sta
 - **说话人编号**：台词的 `(Sx)` 用 `shot_spec.dialogue.speaker_id`，全剧固定，不要按本镜重新编号
 - **衔接**：开场画面要满足 `continuity_in`
 
+## 镜头正文写法（所有模型通用，必须遵守）
+
+正文写的是**这几秒里看得见、听得见的事**。下面的规则来自 MiniMax H3 官方提示词指南、shuohao-skills 的分镜写法（Apache-2.0，见文末署名）和本项目的实测翻车记录。
+
+### 动作
+
+- **只写常见、低缓、连续的动作**：走过去、转身、抬头、坐下、递东西、撑起身。精确的物理交互（砸穿、四溅、连环出糗）、高爆发动作（狂奔、大跳、翻滚）、手指的细小动作写了也画不对，只会挤掉真正要演的那一下。坠落、碰撞这类过程应在分镜阶段拆成"起因 → 冲击 → 结果"，本镜只写其中一段。
+- **肢体具体到部位，带幅度和速度**："缓慢抬起右手捂住头顶""快速转头""肩膀微微一缩"。
+- **写出动作之间的承接**："借着撑起身的势头抬头看向他"。
+- **情绪写成身体细节**，不写"很尴尬""很震惊"：震惊是瞪大眼、嘴微张、整个人僵住；尴尬是咧嘴龇牙地笑、缩脖子、眼神躲闪。
+- **按顺序写 2-3 个表演节拍**，用文字写时长（"For the first second… Over the next two seconds… In the final second…"），不要写 `0.0s–1.0s:` 这类时间戳。只写"抬头、笑"这种笼统动作，模型会平平带过。
+- **每个人的表演都要写，包括不动的人**："他一动不动地躺着，两眼直勾勾盯着天，面无表情"也是表演，不写就会被演成别的。
+- **写一句表演基调**：喜剧写 `comedic, natural and expressive acting, not posing for the camera`；正剧写 `restrained, naturalistic acting`。精致画风下不写这句，人物会一直在摆好看的姿势。
+
+### 人物、画面状态与构图
+
+- **人物此刻在哪，必须和首帧图一致**：已倒地、在门口、坐在桌边。图和文对不上时模型听图的，动作就乱。
+- **写明"没有什么"**：本镜和定妆图不一样的地方必须明说，否则模型会按参考图补回来。例如眼镜被撞掉：`he is not wearing his glasses; they lie on his shirt collar for the whole shot, and there is only one pair of glasses.` 换装、受伤、道具丢失同理。
+- **人数写死**：`Exactly two people are in the frame, each appears once.` 后出场的人写"从画外进入"，不要在开头就写进画面。
+- **动作对象必须在画面里**："扔给她""凑近她"——她得在画面里，否则改成"推向画面近处的桌沿""对着画外说"。
+- **构图要量化，不能只写景别**：写出机位（对着谁、平视/俯视/仰视）、谁在画面左右、视线落点（看对方的脸 / 看手里的东西）。
+- **固定机位锁背景**：`The camera and the background stay exactly as in the first frame; no new objects appear.` 不要提画面里没有的东西（写"头顶的破雨棚在晃"，模型会凭空造一个雨棚）。
+
+### 运镜
+
+- **一镜一个主运镜**，写成自然的动作句，带幅度和速度：`The camera pushes in with small amplitude at slow speed toward her face.`、`The camera holds a static shot.`。推完再摇、边跟边环绕，模型只会挑一个做。
+- 官方运镜词：Push In / Pull Out、Pan、Truck、Tilt、Pedestal Up / Down、Arc Shot、Tracking Shot、Static Shot、Shake Slightly；幅度 `with small amplitude` / `with large amplitude`，速度 `at slow speed` / `at fast speed`。
+
+### 声音与台词
+
+- **台词逐字保留**，一个标点都不许改；说话人第一次出现时，在 `<d>` 外面写清身份、年龄段、性别、音色、语速，例如 `the young man with a flat, low, unhurried voice (S2) says:`。
+- **声音分三层**：台词写在正文；环境声、动作声、喘气呻吟写进 soundscape（1-4 句，不复述台词）；配乐写进 music。声景也是动作指令——写了"撞击声"，模型就会把撞击演出来，画面动作改了声景要一起改。
+
+### 不写的东西
+
+- 不写夸张量词（everywhere / all over / dozens of），写具体的少量："three small splashes of batter"。
+- 不写画风词：画风由系统统一添加，写进正文会和项目画风打架。
+- 不新增剧本没有的人物、道具、动作、对白、画面文字。
+- 难画的特效（线条走向、打结、全屏变灰、只留两人有颜色）模型画不准：正文只写人物的动作、视线和站位，特效由后期叠加。
+
 ## 第一视角（主观镜头）
 
 description 写的是主观镜头（「我看见」「我低头」或镜头行标注主观、第一视角、POV）时：
@@ -102,8 +142,8 @@ N/A
 - **summary**：以 `[reference generation]` 开头，用一句英文说清谁在哪里做什么。只能使用已经定义的 `<Subject N>`。
 - **retention_analysis**：每个 Subject 一行，格式为 `<Subject N> (appears in [Shot 1]): fully_preserved - 保留了哪些特征`。
 - **detailed_description**：
-  - 第一句写画面风格和光线（取自 atmosphere），然后是 `[Shot 1]`。单镜头分镜只有 `[Shot 1]`，不写时间戳，不切镜。
-  - 按播放顺序写清构图和景别、Subject 的位置和外观、环境与光线、动作和状态变化、运镜、此刻的声音。动作要在 duration 内做得完。
+  - 第一句写光线（取自 atmosphere），然后是 `[Shot 1]`。单镜头分镜只有 `[Shot 1]`，`[Shot 1]` 后面不写时间戳，不切镜。
+  - 按「镜头正文写法」写：起始状态（和首帧一致）→ 动作开始 → 2-3 个表演节拍 → 结束状态，中间带运镜句、表演基调、"没有什么"和人数句。动作要在 duration 内做得完。
   - 每个动作都写明终点：物体最后停在哪里、是否离开画面、人物最后的姿势和表情。例如不要只写 `slowly lowers the fan`，要写 `slowly lowers the fan all the way down to her lap, fully revealing her face`。
   - 正文控制在 150-300 个英文单词，信息量大的镜头可以更长，但不要写成剧情梗概。
   - 说话的角色写 `<Subject N> (S1)`，按发声顺序编号 S1、S2，同一个人全程用同一个编号。台词写成 `<d>[Chinese] 台词。</d>`，台词保持中文原文，结尾用句号、问号或感叹号。台词只取自 description，不新增。
@@ -119,6 +159,11 @@ N/A
 - 不要写 `@图片1`、`<Picture 1>` 这类标签，只写 `@名字`，系统会自动转换。
 - 项目的画风前缀由系统自动插入 detailed_description 开头，不要自行写画风关键词堆砌。
 - 结构参考 MiniMax 官方 h3-prompt-writing 规范（github.com/MiniMax-AI/MiniMax-H3），本节为火宝项目的改写版。
+- 分镜带首帧图时，系统会把本六段式自动转换为官方首帧（I2VA）/ 首尾帧（FL2VA）格式，正文照常按本规范写即可。
+
+## 署名
+
+「镜头正文写法」中的动作、构图、声音分层、不写画风等规则改编自 [eternityspring/shuohao-skills](https://github.com/eternityspring/shuohao-skills) 的 `skills/novel-storyboard/references/shot-writing.md` 与 `h3-prompt.md`，原作采用 Apache License 2.0，许可全文见同目录 `LICENSE-shuohao-skills`。
 
 ## 保存
 

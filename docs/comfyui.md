@@ -169,3 +169,17 @@ RTX 4090 实测：1920x1088 文生图约 64 秒，带两张参考图的 1344x768
    - `docs/workflows/minimax_h3_fl2va_quality_api.json`：FL2VA int8 20 步 + INT8 注意力 + sol-attn 稀疏注意力
    适配器会把六段式 Ref2VA 提示词转成 FL2VA/I2VA 格式（去掉 @ 引用、Subject 换成描述、锚定「从 Picture 1 开始、停在 Picture 2」）。
 4. 接口：`GET/POST /storyboards/:id/keyframes`、`POST /storyboards/:id/keyframes/select`、`POST /episodes/:id/keyframes`（批量）。Wan 3.0（aliyun）首尾帧不能混用参考图，带首帧时后端自动丢弃参考图。
+
+## 成片增强：超分 + 补帧
+
+镜头定稿后再做的最后一步，很慢，不对草稿批量跑。
+
+- 工作流：`docs/workflows/enhance_seedvr2_rife_api.json`。LoadVideo（`{{video}}`）→ SeedVR2 3B fp8 超分（短边 1080，batch 21，VAE 分块）→ RIFE 4.7 补帧 ×2（24→48fps）→ 原音轨重新封装。
+- 配置：ComfyUI 视频配置 `settings.enhanceWorkflow`。增强任务是该分镜的一条新视频任务（`referenceMode=enhance`），完成后回写分镜视频，原片留在任务历史里。增强模式不做自动填充（SeedVR2 的 seed 上限是 2^32）。
+- 入口：分镜参数区「超分补帧」按钮、工具栏「批量超分补帧」；接口 `POST /storyboards/:id/enhance`、`POST /episodes/:id/enhance`。
+- 实测（RTX 4090）：4.5 秒镜头 768×1344@24 → 1080×1890@48，约 265-290 秒（含模型加载）。
+- 服务器要求：SeedVR2（seedvr2_videoupscaler 节点 + `models/SEEDVR2` 下的 3B fp8 与 ema_vae）、ComfyUI-Frame-Interpolation（rife47.pth）。PyTorch cu13 环境需要把 `site-packages/nvidia/cu13/lib` 加进 `LD_LIBRARY_PATH`，否则 SeedVR2 报 `libnvrtc-builtins.so.13.0` 找不到（OneThingAI 服务器用 `/root/start_comfyui.sh` 启动）。
+
+## T8 节点（MiniMax H3 Audio T8）
+
+OneThingAI 服务器已装 T8 v1.104.0（commit 3a23f33，GPL-3.0，仅装在服务器上，不随本仓库分发）。只装了代码（排除 examples/tests/docs），无额外 pip 依赖。服务器连 GitHub 不稳定时，在本机 clone 后 scp 上传。T8 的人物音色 / 对白需要角色声音样本或台词录音，尚未接入火宝流程。
