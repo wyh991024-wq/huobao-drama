@@ -197,18 +197,32 @@ function openaiThinkingOffPatch(): Record<string, any> {
  * - 自部署 vLLM / SGLang（本机、内网、隧道地址）：Qwen 系通过 chat_template_kwargs.enable_thinking 关闭；
  *   reasoning_effort:'none' 不在其枚举里会 400
  */
+const isSelfHostedHost = (baseURL: string) => /\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(baseURL)
+
 function thinkingOffPatchFor(baseURL: string): Record<string, any> {
   if (process.env.AI_THINKING_OFF_PATCH) return openaiThinkingOffPatch()
   if (/api\.deepseek\.com/.test(baseURL)) return { thinking: { type: 'disabled' } }
-  if (/\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(baseURL)) {
-    return { chat_template_kwargs: { enable_thinking: false } }
-  }
+  if (isSelfHostedHost(baseURL)) return { chat_template_kwargs: { enable_thinking: false } }
   return openaiThinkingOffPatch()
+}
+
+/**
+ * 自部署模型（vLLM 跑 Qwen 等）的聊天模板只允许一条、且在最前面的 system 消息
+ * （报 "System message must be at the beginning."），而 Agent 会在对话中途插入 system 消息（规则、技能）。
+ * 这里把所有 system 消息按原顺序合并成一条放到最前面；云端服务不受影响。
+ */
+function hoistSystemMessages(messages: any[]): any[] {
+  const systems = messages.filter(m => m?.role === 'system')
+  if (systems.length <= 1 && messages[0]?.role === 'system') return messages
+  if (!systems.length) return messages
+  const text = (c: any) => typeof c === 'string' ? c : Array.isArray(c) ? c.map((p: any) => p?.text ?? '').join('') : ''
+  return [{ role: 'system', content: systems.map(m => text(m.content)).filter(Boolean).join('\n\n') }, ...messages.filter(m => m?.role !== 'system')]
 }
 
 function createThinkingOffFetch(providerName: string, baseURL: string): typeof fetch | undefined {
   if (!thinkingOffEnabled || isOfficialTextHost(baseURL)) return undefined
   const openaiPatch = thinkingOffPatchFor(baseURL)
+  const selfHosted = isSelfHostedHost(baseURL)
 
   return async (input: any, init?: any) => {
     try {
@@ -230,6 +244,7 @@ function createThinkingOffFetch(providerName: string, baseURL: string): typeof f
         } else if (Array.isArray(body?.messages)) {
           // OpenAI 兼容格式
           Object.assign(body, openaiPatch)
+          if (selfHosted) body.messages = hoistSystemMessages(body.messages)
           init = { ...init, body: JSON.stringify(body) }
         }
       }
