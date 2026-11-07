@@ -149,9 +149,13 @@ export async function checkEpisodeStoryboards(episodeId: number) {
   const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
   const rows = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId)))
     .filter(sb => !sb.deletedAt)
+  const [drama] = ep ? await db.select().from(schema.dramas).where(eq(schema.dramas.id, ep.dramaId)) : []
+  let meta: any = {}
+  try { meta = JSON.parse(drama?.metadata || '{}') || {} } catch {}
+  const script = ep?.scriptContent || ep?.content
   const violations = checkStoryboardRules(
-    rows.map(sb => ({ id: sb.id, n: sb.storyboardNumber, duration: sb.duration || 0, spec: parseShotSpec(sb.shotSpec) })),
-    { pov: isPovScript(ep?.scriptContent || ep?.content) },
+    rows.map(sb => ({ id: sb.id, n: sb.storyboardNumber, duration: sb.duration || 0, spec: parseShotSpec(sb.shotSpec), sceneId: sb.sceneId })),
+    { pov: isPovScript(script), maxEpisodeSeconds: Number(meta.max_episode_seconds) || undefined, script },
   )
   return { shots: rows.length, violations }
 }

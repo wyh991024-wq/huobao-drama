@@ -97,6 +97,31 @@ export interface RuleShot {
   n: number
   duration: number
   spec: ShotSpec | null
+  /** 场景资产 ID：判断"回到已出现过的场景"（返场免建立镜头） */
+  sceneId?: number | null
+}
+
+export interface RuleOptions {
+  pov?: boolean
+  /** 每集总时长上限（秒），来自项目 metadata.max_episode_seconds */
+  maxEpisodeSeconds?: number
+  /** 本集剧本：检查关键台词是否被丢掉 */
+  script?: string | null
+}
+
+const normalizeLine = (t: string) => t.replace(/[^一-鿿A-Za-z0-9]/g, '')
+const bigrams = (t: string) => { const s = new Set<string>(); for (let i = 0; i < t.length - 1; i++) s.add(t.slice(i, i + 2)); return s }
+
+/** 剧本里引号中、以句末标点结尾的台词（屏幕文字、口号一般不带句末标点，不算） */
+export function scriptDialogueLines(script: string | null | undefined): string[] {
+  const out: string[] = []
+  for (const m of String(script || '').matchAll(/[“"「]([^”"」\n]{2,120})[”"」]/g)) {
+    const line = m[1].trim()
+    if (!/[。！？!?…]$/.test(line)) continue
+    const norm = normalizeLine(line)
+    if (norm.length >= 4 && !out.some(x => normalizeLine(x) === norm)) out.push(line)
+  }
+  return out
 }
 export interface RuleViolation { shot?: number; rule: string; message: string }
 
@@ -108,10 +133,17 @@ const speakerOf = (spec: ShotSpec | null) => (spec?.dialogue?.speaker_id || spec
  * 轴线、视线匹配需要看画面，交给分镜 agent 自觉遵守和人工审阅。
  * pov=true（剧本拍摄要求为第一视角）时，不要求以全景建立空间。
  */
-export function checkStoryboardRules(shots: RuleShot[], opts: { pov?: boolean } = {}): RuleViolation[] {
+export function checkStoryboardRules(shots: RuleShot[], opts: RuleOptions = {}): RuleViolation[] {
   const out: RuleViolation[] = []
   const sorted = [...shots].sort((a, b) => a.n - b.n)
   let hasReveal = false
+  // 每场的镜头数（按 scene_code 连续段）与已出现过的场景资产，用于建立镜头的豁免
+  const sceneRunLength = sorted.map((s, i) => {
+    const code = s.spec?.scene_code || ''
+    let a = i; while (a > 0 && (sorted[a - 1].spec?.scene_code || '') === code) a--
+    let b = i; while (b < sorted.length - 1 && (sorted[b + 1].spec?.scene_code || '') === code) b++
+    return b - a + 1
+  })
 
   sorted.forEach((shot, i) => {
     const spec = shot.spec
@@ -136,8 +168,11 @@ export function checkStoryboardRules(shots: RuleShot[], opts: { pov?: boolean } 
     if (sameSceneAsPrev && prev.spec?.shot_size && prev.spec.shot_size === spec.shot_size) {
       out.push({ shot: shot.n, rule: '景别轮换', message: `与上一镜景别相同（${spec.shot_size}）` })
     }
-    if (!sameSceneAsPrev && !opts.pov && spec.shot_size && !['WS', 'MWS', 'EWS'].includes(spec.shot_size)) {
-      out.push({ shot: shot.n, rule: '建立镜头', message: `本场第一镜应以 WS 或 MWS 建立空间，当前为 ${spec.shot_size}` })
+    // 豁免：只有 1-2 镜的短场；回到本集已出现过的场景（返场）
+    const shortScene = sceneRunLength[i] <= 2
+    const returning = shot.sceneId != null && sorted.slice(0, i).some(p => p.sceneId === shot.sceneId && (p.spec?.scene_code || '') !== (spec.scene_code || ''))
+    if (!sameSceneAsPrev && !opts.pov && !shortScene && !returning && spec.shot_size && !['WS', 'MWS', 'EWS'].includes(spec.shot_size)) {
+      out.push({ shot: shot.n, rule: '建立镜头', message: `本场第一镜应以 WS 或 MWS 建立空间，当前为 ${spec.shot_size}（1-2 镜的短场和返场可以不建立）` })
     }
 
     // 规则 3：对话要有反应镜头，不连续两镜同一人说话
@@ -160,9 +195,11 @@ export function checkStoryboardRules(shots: RuleShot[], opts: { pov?: boolean } 
       else if (shot.duration < need) out.push({ shot: shot.n, rule: '对白时长', message: `台词 ${dialogueChars} 字需要至少 ${need} 秒，当前 ${shot.duration} 秒` })
     }
 
-    // 规则 8：每场结尾给情绪落点，不以对白直接切场
-    if (lastInScene && isDialogue(spec)) {
-      out.push({ shot: shot.n, rule: '情绪落点', message: '本场最后一镜是对白，应补一镜 CU 表情或意象空镜作为情绪落点' })
+    // 规则 8：每场结尾给情绪落点，不以对白直接切场。
+    // 台词镜也可以兼作落点：CU/MCU/ECU、purpose 含「情绪落点」、end_frame 写台词说完后停住的表情
+    const dialogueAsLanding = ['CU', 'MCU', 'ECU'].includes(spec.shot_size || '') && /情绪落点/.test(spec.purpose || '')
+    if (lastInScene && isDialogue(spec) && !dialogueAsLanding) {
+      out.push({ shot: shot.n, rule: '情绪落点', message: '本场最后一镜是对白：改成 CU/MCU、purpose 写「情绪落点」、end_frame 写说完后停住的表情；或补一镜 CU 表情 / 意象空镜' })
     }
 
     // 规则 9：揭示镜头
@@ -171,6 +208,24 @@ export function checkStoryboardRules(shots: RuleShot[], opts: { pov?: boolean } 
 
   if (sorted.length && !hasReveal) {
     out.push({ rule: '揭示镜头', message: '全集缺少揭示镜头：反转处应有一镜 purpose=揭示、运镜为 PUSH_SLOW 或 PUSH_FAST 推到 CU' })
+  }
+
+  // 规则 10：集时长上限（超了要删减合并，不能继续加镜头）
+  const total = sorted.reduce((s, x) => s + (x.duration || 0), 0)
+  if (opts.maxEpisodeSeconds && total > opts.maxEpisodeSeconds) {
+    out.push({ rule: '集时长', message: `本集总时长 ${total} 秒，超过上限 ${opts.maxEpisodeSeconds} 秒：合并或删掉信息重复的镜头（如重复的反应镜、可并入台词镜的落点），精简不重要的台词` })
+  }
+
+  // 规则 11：剧本里的台词不能丢（至少六成内容保留在某一镜的台词里，允许为控制时长做精简）
+  if (opts.script) {
+    // 一句台词可能拆在相邻两镜里说，所以和全集台词合起来比
+    const saidGrams = bigrams(sorted.map(x => normalizeLine(x.spec?.dialogue?.text || '')).join('|'))
+    for (const line of scriptDialogueLines(opts.script)) {
+      const g = bigrams(normalizeLine(line))
+      let hit = 0; for (const x of g) if (saidGrams.has(x)) hit++
+      const kept = g.size > 0 && hit / g.size >= 0.6
+      if (!kept) out.push({ rule: '台词丢失', message: `剧本台词没有出现在任何分镜里：「${line}」` })
+    }
   }
   return out
 }
