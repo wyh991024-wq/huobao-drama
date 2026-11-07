@@ -191,9 +191,24 @@ function openaiThinkingOffPatch(): Record<string, any> {
   }
 }
 
+/**
+ * 按端点选关思考参数：通用参数组合会被部分官方端点拒绝
+ * - DeepSeek 官方（api.deepseek.com）：只认 thinking.type=disabled，带上 reasoning_effort:'none' 会 500
+ * - 自部署 vLLM / SGLang（本机、内网、隧道地址）：Qwen 系通过 chat_template_kwargs.enable_thinking 关闭；
+ *   reasoning_effort:'none' 不在其枚举里会 400
+ */
+function thinkingOffPatchFor(baseURL: string): Record<string, any> {
+  if (process.env.AI_THINKING_OFF_PATCH) return openaiThinkingOffPatch()
+  if (/api\.deepseek\.com/.test(baseURL)) return { thinking: { type: 'disabled' } }
+  if (/\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(baseURL)) {
+    return { chat_template_kwargs: { enable_thinking: false } }
+  }
+  return openaiThinkingOffPatch()
+}
+
 function createThinkingOffFetch(providerName: string, baseURL: string): typeof fetch | undefined {
   if (!thinkingOffEnabled || isOfficialTextHost(baseURL)) return undefined
-  const openaiPatch = openaiThinkingOffPatch()
+  const openaiPatch = thinkingOffPatchFor(baseURL)
 
   return async (input: any, init?: any) => {
     try {
@@ -292,6 +307,32 @@ function createMaxTokensFetch(providerName: string, inner?: typeof fetch): typeo
   }
 }
 
+/**
+ * 服务端临时故障自动重试
+ *
+ * 背景：Agent 一集要连续调几十次模型，服务商偶发 5xx / 限流（实测 DeepSeek 官方高峰期约一半请求 500）
+ * 时，任何一次失败都会让整轮拆分中断。这里对 5xx、429 和网络断开按 2/4/8/16 秒退避重试，最多 4 次。
+ * 请求体是字符串，可以原样重发；调用方主动取消（AbortError）不重试。AI_RETRY_MAX 可调整次数。
+ */
+const retryMax = Number(process.env.AI_RETRY_MAX ?? 4)
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504, 520, 521, 522, 523, 524])
+
+function createRetryFetch(providerName: string, inner: typeof fetch): typeof fetch {
+  return async (input: any, init?: any) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const resp = await inner(input, init)
+        if (!RETRYABLE_STATUS.has(resp.status) || attempt >= retryMax) return resp
+        logTaskProgress('AIConfig', 'text-retry', { provider: providerName, status: resp.status, attempt: attempt + 1 })
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || init?.signal?.aborted || attempt >= retryMax) throw err
+        logTaskProgress('AIConfig', 'text-retry', { provider: providerName, error: String(err?.message || err).slice(0, 120), attempt: attempt + 1 })
+      }
+      await new Promise(r => setTimeout(r, 2000 * 2 ** attempt))
+    }
+  }
+}
+
 async function getModel(fileModel: string | undefined, modelOverride?: string, textConfigId?: number) {
   // 请求可指定文本配置（含其 provider/baseUrl/apiKey），否则回退到当前启用配置
   const textConfig = (textConfigId ? await getConfigById(textConfigId) : null) || await getTextConfig()
@@ -315,9 +356,11 @@ async function getModel(fileModel: string | undefined, modelOverride?: string, t
   const tempFetch = temperature !== null
     ? createTemperatureFetch(providerName, temperature, thinkingOffFetch)
     : thinkingOffFetch
-  const fetchImpl = isOfficialOpenAIHost(resolvedBaseURL)
+  const patchedFetch = isOfficialOpenAIHost(resolvedBaseURL)
     ? tempFetch
     : createMaxTokensFetch(providerName, tempFetch)
+  // 最外层：5xx / 429 / 断网自动退避重试
+  const fetchImpl = createRetryFetch(providerName, patchedFetch || fetch)
 
   if (providerName === 'gemini') {
     const googleProvider = createGoogleGenerativeAI({
