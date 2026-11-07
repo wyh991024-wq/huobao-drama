@@ -579,4 +579,27 @@ const checkStoryboardRulesTool = createTool({
   },
 })
 
-export const storyboardTools = { readStoryboardContext, saveStoryboards, updateStoryboard, saveSceneContinuity, checkStoryboardRules: checkStoryboardRulesTool }
+const deleteStoryboard = createTool({
+  id: 'delete_storyboard',
+  description: 'Delete one storyboard shot of this episode (e.g. a redundant reaction shot or an emotional-ending shot that can be merged into the previous dialogue shot) to bring the episode under its total duration limit. Remaining shots are renumbered in order. Move any dialogue in the deleted shot into a neighbouring shot first.',
+  inputSchema: z.object({ storyboard_id: z.number() }),
+  execute: async ({ storyboard_id }, context) => {
+    const ids = requireIds(context)
+    if ('error' in ids) return ids
+    const [sb] = await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboard_id))
+    if (!sb || sb.episodeId !== ids.episodeId || sb.deletedAt) return { error: 'Storyboard not found in this episode' }
+    const ts = now()
+    await db.update(schema.storyboards).set({ deletedAt: ts, updatedAt: ts }).where(eq(schema.storyboards.id, storyboard_id))
+    const rest = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ids.episodeId)))
+      .filter(s => !s.deletedAt)
+      .sort((a, b) => a.storyboardNumber - b.storyboardNumber)
+    for (const [i, s] of rest.entries()) {
+      if (s.storyboardNumber !== i + 1) await db.update(schema.storyboards).set({ storyboardNumber: i + 1 }).where(eq(schema.storyboards.id, s.id))
+    }
+    const total = rest.reduce((t, s) => t + (s.duration || 0), 0)
+    logTaskProgress('StoryboardTool', 'delete', { episodeId: ids.episodeId, storyboardId: storyboard_id, shots: rest.length, totalDuration: total })
+    return { message: `Deleted shot ${storyboard_id}; ${rest.length} shots remain, total ${total}s` }
+  },
+})
+
+export const storyboardTools = { readStoryboardContext, saveStoryboards, updateStoryboard, deleteStoryboard, saveSceneContinuity, checkStoryboardRules: checkStoryboardRulesTool }

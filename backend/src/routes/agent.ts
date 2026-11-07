@@ -92,7 +92,13 @@ app.post('/:type/chat', async (c) => {
       const merged = { toolCalls: [...(result.toolCalls || [])], toolResults: [...(result.toolResults || [])] }
       const absorb = (r: any) => { merged.toolCalls.push(...(r.toolCalls || [])); merged.toolResults.push(...(r.toolResults || [])) }
       let shots = await countShots()
-      for (let round = 1; round <= 8 && shots > 0 && !/全部完成/.test(result.text || ''); round++) {
+      // 剧本已覆盖完的判断不能只靠模型说「全部完成」（本地模型常常不说，续跑会一直追加镜头）：
+      // 剧本台词都已落到分镜里、或总时长已接近集时长上限，就停止续跑
+      const covered = async () => {
+        const c = await checkEpisodeStoryboards(Number(episode_id))
+        return !c.violations.some(v => v.rule === '台词丢失') || c.violations.some(v => v.rule === '集时长')
+      }
+      for (let round = 1; round <= 8 && shots > 0 && !/全部完成/.test(result.text || '') && !(await covered()); round++) {
         logTaskProgress('Agent', 'storyboard-continue', { round, shots })
         const next = await runMessage(`本集已保存 ${shots} 个分镜。请调用 read_storyboard_context 查看剧本与 existing_storyboards，只拆解尚未覆盖的剩余剧情，shot_number 从 ${shots + 1} 开始，用 save_storyboards 追加保存（不要传 replace_existing）。如果剧本已经全部覆盖，不要再保存，直接回复「全部完成」。`)
         absorb(next)
@@ -104,7 +110,10 @@ app.post('/:type/chat', async (c) => {
       const check = await checkEpisodeStoryboards(Number(episode_id))
       if (check.violations.length) {
         logTaskProgress('Agent', 'storyboard-fix-rules', { violations: check.violations.length })
-        const fix = await runMessage(`导演规则检查发现 ${check.violations.length} 处问题：${JSON.stringify(check.violations).slice(0, 4000)}。请调用 read_storyboard_context 查看分镜，用 update_storyboard 逐个修正（需要插入新镜头时用 save_storyboards 追加并保持镜号顺序），修完调用 check_storyboard_rules 确认，最后回复「全部完成」。`)
+        const overLength = check.violations.some(v => v.rule === '集时长')
+        const fix = await runMessage(`导演规则检查发现 ${check.violations.length} 处问题：${JSON.stringify(check.violations).slice(0, 4000)}。请调用 read_storyboard_context 查看分镜，用 update_storyboard 逐个修正，修完调用 check_storyboard_rules 确认，最后回复「全部完成」。${overLength
+          ? '本集已超过集时长上限：这一轮不要新增任何镜头，先用 delete_storyboard 删掉信息重复的镜头（重复的反应镜、能并进上一镜台词的情绪落点、可合并的同场过渡镜），删之前把其中的台词挪进相邻镜头；景别、落点等其他问题用 update_storyboard 改，不要靠加镜头解决。'
+          : '尽量用 update_storyboard 修改已有镜头解决；确实需要插入新镜头时用 save_storyboards 追加并保持镜号顺序。'}`)
         absorb(fix)
         result = { ...fix, toolCalls: merged.toolCalls, toolResults: merged.toolResults }
       } else {
