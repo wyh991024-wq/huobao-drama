@@ -31,9 +31,10 @@ export async function startVideoPromptBatch(
 ): Promise<{ started: boolean; total: number }> {
   if (tasks.get(episodeId)?.status === 'running') return { started: false, total: -1 }
 
-  const sbs = await db.select().from(schema.storyboards)
+  const sbs = (await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, episodeId))
-    .orderBy(schema.storyboards.storyboardNumber)
+    .orderBy(schema.storyboards.storyboardNumber))
+    .filter(sb => !sb.deletedAt)
   const pending = storyboardIds?.length
     ? sbs.filter(sb => storyboardIds.includes(sb.id))
     : sbs.filter(sb => !(sb.videoPrompt || '').trim())
