@@ -39,12 +39,19 @@ export interface ShotSpec {
   start_frame?: string
   end_frame?: string
   action?: string
+  /** 对口型台词：画面里这个人张嘴说，一镜只有一个人 */
   dialogue?: { speaker_id?: string; speaker?: string; text?: string; tone?: string } | null
+  /** 后期配音：[VO] 内心独白、[OS] 画外音、只配音不对口型的角色（簿簿、线团团），可叠在任何镜头上，不进视频提示词 */
+  voiceover?: VoiceoverLine[] | null
+  /** 名条、屏幕/平板上要让观众读清的字：后期叠加，不进视频提示词 */
+  onscreen_text?: string[] | null
   continuity_in?: string
   purpose?: string
   /** 本镜结束时人物/道具状态的变化，按角色名写，未写的保持不变 */
   end_state?: { characters?: Record<string, Partial<CharacterState>>; props?: Record<string, string> }
 }
+
+export interface VoiceoverLine { speaker?: string; kind?: 'VO' | 'OS' | 'DUB' | string; text?: string; tone?: string }
 
 export interface CharacterState { outfit?: string; position?: string; holding?: string; emotion?: string; facing?: string; note?: string }
 export interface SceneState {
@@ -107,21 +114,48 @@ export interface RuleOptions {
   maxEpisodeSeconds?: number
   /** 本集剧本：检查关键台词是否被丢掉 */
   script?: string | null
+  /** 只配音、不对口型的角色名（如簿簿、线团团），来自项目 metadata.dub_only_characters */
+  dubOnly?: string[]
 }
 
 const normalizeLine = (t: string) => t.replace(/[^一-鿿A-Za-z0-9]/g, '')
 const bigrams = (t: string) => { const s = new Set<string>(); for (let i = 0; i < t.length - 1; i++) s.add(t.slice(i, i + 2)); return s }
 
-/** 剧本里引号中、以句末标点结尾的台词（屏幕文字、口号一般不带句末标点，不算） */
+/**
+ * 剧本台词：
+ * - 台词驱动格式：「角色名（表演提示）：台词」「[VO] 角色：台词」「[OS] 角色：台词」；[画面文字] 等其他标记行不算
+ * - 旧格式：引号中、以句末标点结尾的句子（屏幕文字、口号一般不带句末标点，不算）
+ */
 export function scriptDialogueLines(script: string | null | undefined): string[] {
   const out: string[] = []
-  for (const m of String(script || '').matchAll(/[“"「]([^”"」\n]{2,120})[”"」]/g)) {
-    const line = m[1].trim()
-    if (!/[。！？!?…]$/.test(line)) continue
+  const add = (line: string) => {
     const norm = normalizeLine(line)
     if (norm.length >= 4 && !out.some(x => normalizeLine(x) === norm)) out.push(line)
   }
+  for (const raw of String(script || '').split('\n')) {
+    const m = parseScriptLine(raw)
+    if (m) add(m.text)
+  }
+  for (const m of String(script || '').matchAll(/[“"「]([^”"」\n]{2,120})[”"」]/g)) {
+    const line = m[1].trim()
+    if (/[。！？!?…]$/.test(line)) add(line)
+  }
   return out
+}
+
+/** 解析台词驱动剧本的一行台词；不是台词行返回 null */
+export function parseScriptLine(raw: string): { kind: 'LIP' | 'VO' | 'OS'; speaker: string; note: string; text: string } | null {
+  const m = raw.trim().match(/^(?:\[(VO|OS)\]\s*)?([^\s：:[\]#（(]{1,12})(?:[（(]([^）)]*)[）)])?[：:]\s*(.+)$/)
+  if (!m) return null
+  return { kind: (m[1] as 'VO' | 'OS') || 'LIP', speaker: m[2], note: m[3] || '', text: m[4].trim() }
+}
+
+/** 本镜所有要说出来的字：对口型台词 + 后期配音 */
+export function spokenTexts(spec: ShotSpec | null): string[] {
+  if (!spec) return []
+  const lines = (spec.voiceover || []).map(v => v?.text || '')
+  if (spec.dialogue?.text) lines.unshift(spec.dialogue.text)
+  return lines.filter(t => t.trim())
 }
 export interface RuleViolation { shot?: number; rule: string; message: string }
 
@@ -185,9 +219,16 @@ export function checkStoryboardRules(shots: RuleShot[], opts: RuleOptions = {}):
       out.push({ shot: shot.n, rule: '动作衔接', message: '缺少 continuity_in（与上一镜 end_frame 一致的要素）' })
     }
 
-    // 规则 7：时长 5-8 秒；对白镜时长 ≥ 字数 × 0.25 + 1，台词长的镜头上限放宽到台词所需（最多 12 秒，再长就该拆镜）
-    const dialogueChars = isDialogue(spec) ? spec.dialogue!.text!.replace(/[\s，。！？、…,.!?「」"'“”]/g, '').length : 0
-    const need = dialogueChars ? Math.ceil(dialogueChars * 0.25 + 1) : 0
+    // 规则 4：只配音的角色（簿簿、线团团等）不对口型，台词放进 voiceover
+    const lipSpeaker = (spec.dialogue?.speaker || '').trim()
+    if (isDialogue(spec) && lipSpeaker && (opts.dubOnly || []).some(n => lipSpeaker.includes(n) || n.includes(lipSpeaker))) {
+      out.push({ shot: shot.n, rule: '配音角色', message: `${lipSpeaker} 只配音不对口型：把这句移到 voiceover（kind=DUB），dialogue 留空` })
+    }
+
+    // 规则 7：时长 5-8 秒；有台词的镜头按每秒约 3.5 字算（对口型 + 后期配音合计），时长 ≥ 字数 ÷ 3.5 + 1，
+    // 台词长的镜头上限放宽到台词所需（最多 12 秒，再长就该拆镜）
+    const dialogueChars = spokenTexts(spec).join('').replace(/[\s，。！？、…,.!?「」"'“”—]/g, '').length
+    const need = dialogueChars ? Math.ceil(dialogueChars / 3.5 + 1) : 0
     const maxDuration = Math.min(12, Math.max(8, need))
     if (shot.duration < 5 || shot.duration > maxDuration) out.push({ shot: shot.n, rule: '时长', message: `时长 ${shot.duration} 秒，应在 5-${maxDuration} 秒` })
     if (dialogueChars) {
@@ -219,7 +260,7 @@ export function checkStoryboardRules(shots: RuleShot[], opts: RuleOptions = {}):
   // 规则 11：剧本里的台词不能丢（至少六成内容保留在某一镜的台词里，允许为控制时长做精简）
   if (opts.script) {
     // 一句台词可能拆在相邻两镜里说，所以和全集台词合起来比
-    const saidGrams = bigrams(sorted.map(x => normalizeLine(x.spec?.dialogue?.text || '')).join('|'))
+    const saidGrams = bigrams(sorted.map(x => spokenTexts(x.spec).map(normalizeLine).join('|')).join('|'))
     for (const line of scriptDialogueLines(opts.script)) {
       const g = bigrams(normalizeLine(line))
       let hit = 0; for (const x of g) if (saidGrams.has(x)) hit++

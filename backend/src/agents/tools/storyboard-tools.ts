@@ -125,7 +125,15 @@ const shotSpecSchema = z.object({
   start_frame: z.string().describe('镜头开始时：谁在什么位置、什么姿势、看向哪里'),
   end_frame: z.string().describe('镜头结束时：同上'),
   action: z.string().describe('镜头内的单一主动作'),
-  dialogue: z.object({ speaker_id: z.string().optional(), speaker: z.string().optional(), text: z.string().optional(), tone: z.string().optional() }).nullable().optional(),
+  dialogue: z.object({ speaker_id: z.string().optional(), speaker: z.string().optional(), text: z.string().optional(), tone: z.string().optional() }).nullable().optional()
+    .describe('对口型台词：画面里正在张嘴说话的那一个人。一镜只能有一个人对口型'),
+  voiceover: z.array(z.object({
+    speaker: z.string().optional(),
+    kind: z.string().optional().describe('VO=内心独白/旁白，OS=人在现场但不入镜，DUB=只配音不对口型的角色（簿簿、线团团等）'),
+    text: z.string().optional(),
+    tone: z.string().optional(),
+  })).nullable().optional().describe('后期配音的台词，按说出顺序排列，可叠在任何镜头上；不写进 video_prompt'),
+  onscreen_text: z.array(z.string()).nullable().optional().describe('剧本 [画面文字] 和名条（如「陆衍｜离婚律师」「大屏：阿缘 0 对」）：后期叠加，不写进 video_prompt'),
   continuity_in: z.string().optional().describe('必须与上一镜 end_frame 一致的要素'),
   purpose: z.string().describe('建立/推进/反应/揭示/转场/情绪落点'),
   // 宽松接收：模型偶尔把状态写成字符串或嵌套对象，不能因此整批保存失败
@@ -155,9 +163,20 @@ export async function checkEpisodeStoryboards(episodeId: number) {
   const script = ep?.scriptContent || ep?.content
   const violations = checkStoryboardRules(
     rows.map(sb => ({ id: sb.id, n: sb.storyboardNumber, duration: sb.duration || 0, spec: parseShotSpec(sb.shotSpec), sceneId: sb.sceneId })),
-    { pov: isPovScript(script), maxEpisodeSeconds: Number(meta.max_episode_seconds) || undefined, script },
+    {
+      pov: isPovScript(script), maxEpisodeSeconds: Number(meta.max_episode_seconds) || undefined, script,
+      dubOnly: Array.isArray(meta.dub_only_characters) ? meta.dub_only_characters : undefined,
+    },
   )
   return { shots: rows.length, violations }
+}
+
+async function dubOnlyCharacters(dramaId: number): Promise<string[]> {
+  const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, dramaId))
+  try {
+    const list = JSON.parse(drama?.metadata || '{}')?.dub_only_characters
+    return Array.isArray(list) ? list : []
+  } catch { return [] }
 }
 
 function requireIds(context: ToolContext): { episodeId: number; dramaId: number } | { error: string } {
@@ -294,6 +313,8 @@ const readStoryboardContext = createTool({
       scene_continuity: [...continuityMap.values()],
       camera_moves: Object.entries(CAMERA_MOVES).map(([id, m]) => ({ id, name: m.name, h3: m.h3, use: m.use })),
       pov_script: isPovScript(script),
+      // 只配音不对口型的角色：台词一律写进 shot_spec.voiceover（kind=DUB）
+      dub_only_characters: await dubOnlyCharacters(dramaId),
     }
     logTaskSuccess('StoryboardTool', 'read-context', {
       episodeId,

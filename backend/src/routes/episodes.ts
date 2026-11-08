@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { batchKeyframes } from '../services/keyframes.js'
 import { enhanceEpisodeVideos } from '../services/enhance.js'
+import { episodeLineSheet, getEpisodeVoicesStatus, startEpisodeVoices } from '../services/tts.js'
 import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
@@ -171,6 +172,21 @@ app.get('/:id/video-prompts-status', async (c) => {
 app.post('/:id/enhance', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   try { return success(c, await enhanceEpisodeVideos(Number(c.req.param('id')), { configId: body.config_id || undefined })) } catch (e: any) { return badRequest(c, e.message) }
+})
+
+// POST /episodes/:id/voices { force?, storyboard_ids? } — 整集台词配音（TTS，后台执行，结果写进各分镜 voice_tracks）
+app.post('/:id/voices', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const ids = Array.isArray(body.storyboard_ids) ? body.storyboard_ids.map(Number).filter(Boolean) : undefined
+  return success(c, startEpisodeVoices(Number(c.req.param('id')), { force: !!body.force, storyboardIds: ids }))
+})
+
+// GET /episodes/:id/voices — 配音任务状态
+app.get('/:id/voices', (c) => success(c, getEpisodeVoicesStatus(Number(c.req.param('id')))))
+
+// GET /episodes/:id/line-sheet — 按角色分好的台词清单（markdown，给配音用）
+app.get('/:id/line-sheet', async (c) => {
+  try { return c.text(await episodeLineSheet(Number(c.req.param('id'))), 200, { 'Content-Type': 'text/markdown; charset=utf-8' }) } catch (e: any) { return badRequest(c, e.message) }
 })
 
 // POST /episodes/:id/keyframes { kind, count, only_missing, config_id?, model? } — 整集批量生成候选关键帧

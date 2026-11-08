@@ -10,6 +10,7 @@ const instructions: Record<string, string> = {
 - 直接复制 voice_reference 的完整值（如 #林小雨），禁止改名、缩写、翻译或追加“音色”后缀。@角色名引用形象，#角色名引用音色，两者分别放在画面动作与发声位置。
 - 没有上传音色的角色、未绑定角色、已移除音色和不说话的角色，不添加 # 引用。旁白只有明确对应某个已绑定、已有音色的角色时才可引用，不借用其他角色的音色。
 - 音频仅用于参考音色，台词内容与说话时机遵循 description；不要为了使用音色新增台词、人物或镜头。
+- 只给对口型台词（shot_spec.dialogue）加 # 音色引用；[VO]、[OS]、[配音] 和 shot_spec.voiceover 的台词由后期 TTS 配音，不写进 video_prompt。
 - 保存前检查 @图片引用、#音色引用和说话角色的对应关系。video_prompt 中保留原始 #角色名 标签，不写音频 URL、Base64、音频1 等上游编号；编号由视频生成接口自动映射。`,
   en: `## Character voice references in video_prompt
 - read_storyboard_context provides has_voice and voice_reference for each character, plus available_voice_references for each existing storyboard.

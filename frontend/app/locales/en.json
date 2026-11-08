@@ -957,6 +957,18 @@
       "confirmOne": "Upscale and interpolate this shot? About 4-5 minutes per 5-second shot; best done after the shot is final.",
       "confirmBatch": "Upscale and interpolate every shot not enhanced yet? About 4-5 minutes per 5-second shot.",
       "started": "Submitted {n} enhancement tasks"
+    },
+    "voice": {
+      "batch": "Generate voices",
+      "batchHint": "TTS for all lines of this episode, each character with its uploaded voice; unchanged lines are skipped",
+      "confirmBatch": "Generate TTS voices for the whole episode? Needs IndexTTS2 on the ComfyUI server; characters without a voice sample are skipped.",
+      "started": "Voice generation started",
+      "running": "Generating voices…",
+      "done": "Voices done: {n} lines, {f} failed",
+      "missing": "No voice sample yet: {names}",
+      "sheet": "Line sheet",
+      "sheetHint": "Export this episode's lines grouped by character",
+      "tracks": "Voices"
     }
   },
   "errors": {

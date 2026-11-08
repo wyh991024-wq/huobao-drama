@@ -49,6 +49,8 @@ export const episodeAPI = {
   del: (id: number) => api.del(`/episodes/${id}`),
   storyboardCheck: (id: number) => api.get(`/episodes/${id}/storyboard-check`),
   enhance: (id: number) => api.post(`/episodes/${id}/enhance`, {}),
+  voices: (id: number, d: { force?: boolean; storyboard_ids?: number[] } = {}) => api.post(`/episodes/${id}/voices`, d),
+  voicesStatus: (id: number) => api.get(`/episodes/${id}/voices`),
   batchKeyframes: (id: number, d: { kind: 'first' | 'last'; count: number; model?: string; config_id?: number }) => api.post(`/episodes/${id}/keyframes`, d),
   characters: (id: number) => api.get(`/episodes/${id}/characters`),
   scenes: (id: number) => api.get(`/episodes/${id}/scenes`),

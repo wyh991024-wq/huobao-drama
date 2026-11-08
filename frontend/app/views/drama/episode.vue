@@ -507,6 +507,8 @@
                 <button v-if="keyframesEnabled" class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchFirstHint')" @click="batchKeyframes('first')">{{ t('episode.kf.batchFirst') }}</button>
                 <button v-if="keyframesEnabled" class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchLastHint')" @click="batchKeyframes('last')">{{ t('episode.kf.batchLast') }}</button>
                 <button class="btn btn-sm" :disabled="!sbs.length || enhanceBatching" :title="t('episode.enhance.batchHint')" @click="batchEnhance">{{ t('episode.enhance.batch') }}</button>
+                <button class="btn btn-sm" :disabled="!sbs.length || voiceRunning" :title="t('episode.voice.batchHint')" @click="batchVoices">{{ voiceRunning ? t('episode.voice.running') : t('episode.voice.batch') }}</button>
+                <a class="btn btn-sm" :href="`/api/v1/episodes/${epId}/line-sheet`" target="_blank" :title="t('episode.voice.sheetHint')">{{ t('episode.voice.sheet') }}</a>
                 <button class="btn btn-sm" :class="{ 'is-on': videoSelectMode }" @click="toggleVideoSelectMode">
                   {{ videoSelectMode ? t('episode.vid.selectDone', { n: selectedVideoSbIds.length }) : t('episode.vid.select') }}
                 </button>
@@ -914,6 +916,14 @@
                   >
                     {{ t('episode.enhance.one') }}
                   </button>
+                  <div v-if="voiceTracksOf(selectedSb).length" class="voice-tracks">
+                    <div class="voice-tracks-title">{{ t('episode.voice.tracks') }}</div>
+                    <div v-for="(vt, i) in voiceTracksOf(selectedSb)" :key="i" class="voice-track">
+                      <span class="voice-track-label">［{{ vt.kind }}］{{ vt.speaker }}：{{ vt.text }}</span>
+                      <audio v-if="vt.url" :src="`/${vt.url}`" controls preload="none" />
+                      <span v-else-if="vt.error" class="voice-track-error">{{ vt.error }}</span>
+                    </div>
+                  </div>
                 </div>
               </aside>
               </div>
@@ -2757,6 +2767,32 @@ async function enhanceVid(sb) {
     await refresh()
   } catch (e) { toastError(e) }
   finally { enhancingIds.value = enhancingIds.value.filter(id => id !== sb.id) }
+}
+// ========== 台词配音（TTS）：对口型台词视频自带，VO/OS/配音角色合成成片时混入 ==========
+const voiceRunning = ref(false)
+function voiceTracksOf(sb) {
+  try { return sb?.voice_tracks ? JSON.parse(sb.voice_tracks) : [] } catch { return [] }
+}
+async function batchVoices() {
+  if (!epId.value || voiceRunning.value) return
+  if (!window.confirm(t('episode.voice.confirmBatch'))) return
+  voiceRunning.value = true
+  try {
+    await episodeAPI.voices(epId.value)
+    toast.success(t('episode.voice.started'))
+    for (;;) {
+      await new Promise(r => setTimeout(r, 4000))
+      const st = await episodeAPI.voicesStatus(epId.value)
+      if (!st || st.status === 'running') continue
+      if (st.status === 'error') throw new Error(st.error)
+      const r = st.result || {}
+      toast.success(t('episode.voice.done', { n: r.generated || 0, f: r.failed || 0 }))
+      if (r.missing_voice?.length) toast.error(t('episode.voice.missing', { names: r.missing_voice.join('、') }))
+      break
+    }
+    await refresh()
+  } catch (e) { toastError(e) }
+  finally { voiceRunning.value = false }
 }
 async function batchEnhance() {
   if (!epId.value || enhanceBatching.value) return
@@ -5553,6 +5589,11 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 .video-inspector-params dt { color: var(--text-3); }
 .video-inspector-params dd { margin: 0; color: var(--text-1); text-align: right; }
 .video-inspector-action { width: 100%; min-height: 32px; height: 32px; padding: 0 12px; font-size: 12.5px; }
+.voice-tracks { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.voice-tracks-title { font-size: 12px; color: var(--text-2, #888); }
+.voice-track { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.4; }
+.voice-track audio { width: 100%; height: 28px; }
+.voice-track-error { color: #d9534f; }
 /* 绑定参考图：当前分镜已绑定素材的图片平铺（生成时作为参考图提交） */
 .video-bound-refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
 .video-bound-ref {

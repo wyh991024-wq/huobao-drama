@@ -136,6 +136,8 @@ export const storyboards = sqliteTable('storyboards', {
   status: text('status').default('pending'),
   /** 导演参数 JSON（见 services/director.ts ShotSpec） */
   shotSpec: text('shot_spec'),
+  /** 配音轨 JSON（见 services/tts.ts VoiceTrack） */
+  voiceTracks: text('voice_tracks'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),

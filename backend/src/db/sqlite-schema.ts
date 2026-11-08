@@ -393,6 +393,8 @@ export function initSqliteSchema(sqlite: Database.Database) {
   // 导演参数（结构化分镜字段，JSON）
   const storyboardColumns = new Set((sqlite.prepare('PRAGMA table_info(storyboards)').all() as { name: string }[]).map(c => c.name))
   if (!storyboardColumns.has('shot_spec')) sqlite.exec('ALTER TABLE storyboards ADD COLUMN shot_spec TEXT')
+  // 配音轨：本镜各句台词的 TTS 音频（JSON，见 services/tts.ts）
+  if (!storyboardColumns.has('voice_tracks')) sqlite.exec('ALTER TABLE storyboards ADD COLUMN voice_tracks TEXT')
   // 场记表：每集每场一份状态
   sqlite.exec(`CREATE TABLE IF NOT EXISTS scene_continuity (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -75,6 +75,8 @@ read_storyboard_context 返回的分镜带有 `shot_spec` 和 `continuity_at_sta
 
 - **台词逐字保留**，一个标点都不许改；说话人第一次出现时，在 `<d>` 外面写清身份、年龄段、性别、音色、语速，例如 `the young man with a flat, low, unhurried voice (S2) says:`。
 - **声音分三层**：台词写在正文；环境声、动作声、喘气呻吟写进 soundscape（1-4 句，不复述台词）；配乐写进 music。声景也是动作指令——写了"撞击声"，模型就会把撞击演出来，画面动作改了声景要一起改。
+- **只写对口型台词**：视频里只出现 `shot_spec.dialogue` 那一句（description 里「角色名说：「台词」」）。`shot_spec.voiceover` 和 description 里 `[VO]` `[OS]` `[配音]` 开头的台词是后期配音，**一个字都不写进提示词**；本镜只有配音、没有对口型台词时，画面里所有人都写「闭着嘴」（H3：`keeps her mouth closed`），可以写听的人的表情、眨眼、呼吸等反应。
+- **对口型的人只有一个**：其他在场的人写「闭着嘴听」。
 
 ### 不写的东西
 
@@ -82,6 +84,7 @@ read_storyboard_context 返回的分镜带有 `shot_spec` 和 `continuity_at_sta
 - 不写画风词：画风由系统统一添加，写进正文会和项目画风打架。
 - 不新增剧本没有的人物、道具、动作、对白、画面文字。
 - 难画的特效（线条走向、打结、全屏变灰、只留两人有颜色）模型画不准：正文只写人物的动作、视线和站位，特效由后期叠加。
+- `shot_spec.onscreen_text`（名条、大屏/平板/手机上的字）由后期叠加：屏幕只写「屏幕亮着柔和的白光，画面模糊、看不清内容」（H3：`the screen glows with a soft blank light, its content unreadable`），名条不写。
 
 ## 第一视角（主观镜头）
 

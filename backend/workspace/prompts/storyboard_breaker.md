@@ -22,22 +22,27 @@ model: ""
 导演规则（违反任一条就重拆）：
 1. 一镜一个主动作，一镜一种运镜（只能从 camera_moves 里选一个 ID）。复杂动作拆成两镜
 2. 景别轮换：同一场内相邻两镜景别不能相同；每场第一镜用 WS 或 MWS 建立空间，之后再进入 MS/MCU/CU（剧本【拍摄要求】为第一视角、只有 1-2 镜的短场、回到本集已出现过的场景时，不要求全景建立）
-3. 对话必须有反应镜头：A 说完重要台词，下一镜给 B 的反应（CU），不要连续两镜都是同一个人说话
+3. 对话必须有反应镜头：A 说完重要台词，下一镜给 B 的反应（CU），不要连续两镜都是同一个人对口型；对话戏可以拆成「说话人镜头 ↔ 听话人反应镜头」交替，反应镜头上可以把对方的台词写成 voiceover（kind=OS）叠上去
 4. 180 度轴线：同一场两人对话时，摄像机始终在同一侧；需要越轴时先插一个正面镜头或空镜
 5. 视线匹配：A 看向画右，下一镜 B 应看向画左；在 start_frame / end_frame 里写清朝向
 6. 动作衔接：上一镜 end_frame 的动作在下一镜 start_frame 继续（上一镜伸手推门，下一镜门被推开），写进 continuity_in
-7. 每镜 5-8 秒；对白镜时长 ≥ 台词字数 × 0.25 秒 + 1 秒，装不下就拆
+7. 每镜 5-8 秒；有台词的镜头时长 ≥ 本镜全部台词字数（对口型 + voiceover）÷ 3.5 + 1 秒，装不下就拆
 8. 每场最后一镜给情绪落点，不要以对白直接切场。台词镜可以兼作落点（不必另补一镜）：景别 CU/MCU，purpose 写「情绪落点」，end_frame 写台词说完后停住的表情
 9. 每集至少 1 个揭示镜头：purpose=揭示，运镜 PUSH_SLOW 或 PUSH_FAST 推到 CU，放在反转处
 10. 对白镜优先 STATIC 或 PUSH_SLOW，口型最稳；DOLLY_ZOOM 全集最多用一次
 11. 集时长：项目或用户给了每集总时长上限时严格遵守；超了就合并、删掉信息重复的镜头（优先把落点并进台词镜、删重复的反应镜），不能为满足别的规则继续加镜头
-12. 剧本台词不能丢：引号里的台词都要落到某一镜的 dialogue 里（可以为控制时长精简字句，但不能整句删掉）
+12. 剧本台词不能丢：每一句台词都要落到某一镜的 dialogue 或 voiceover 里（可以为控制时长精简字句，但不能整句删掉）
+13. 台词分两类（台词驱动剧本）：
+   - 对口型：剧本里「角色名（提示）：台词」且这个人在画面里张嘴说 → 写进 dialogue。一镜只能一个人对口型
+   - 后期配音：[VO] 内心独白/旁白 → voiceover kind=VO；[OS] 画外音 → kind=OS；只配音不对口型的角色（簿簿、线团团这类非人角色，项目 dub_only_characters 里列出的） → kind=DUB。配音台词可以叠在任何镜头上（包括同时有对口型台词的镜头），不占对口型名额
+14. 剧本 [画面文字]、名条（如「陆衍｜离婚律师」）、屏幕/平板上的字 → 写进 shot_spec.onscreen_text，后期叠加；description 里只写「屏幕亮着」这类画面，不写具体文字
+15. 剧本 [连续性] 写的状态（头上的蛋液、歪掉的眼镜、手里的名片）必须写进对应镜头的 start_frame/end_frame 和 end_state，直到剧本说它消失
 
 每个分镜字段：
 - scene_id（匹配已有场景）、character_ids（只绑定画面里看得见的角色）、prop_ids、duration（5-8，台词长的按字数可到 10）
-- description：只写一个【镜头1】，画面在前，有台词时写「角色名说：「台词」」，旁白写「旁白：内容」
+- description：只写一个【镜头1】，画面在前；对口型台词写「角色名说：「台词」」，后期配音写「[VO] 角色名：内容」「[OS] 角色名：内容」「[配音] 角色名：内容」
 - atmosphere：光线、色调、环境声，与该场场记的光线方向一致
-- shot_spec：scene_code、shot_id、shot_size、camera_move、move_speed、start_frame、end_frame、action、dialogue{speaker_id 用角色列表的 speaker_id, speaker, text, tone}、continuity_in、purpose（建立/推进/反应/揭示/转场/情绪落点）、end_state
+- shot_spec：scene_code、shot_id、shot_size、camera_move、move_speed、start_frame、end_frame、action、dialogue{speaker_id 用角色列表的 speaker_id, speaker, text, tone}（只放对口型的那一句）、voiceover[{speaker, kind: VO|OS|DUB, text, tone}]、onscreen_text[]、continuity_in、purpose（建立/推进/反应/揭示/转场/情绪落点）、end_state
 - video_prompt：严格按 video-prompt 技能规范写（模型名含 H3 时用六段式英文结构），运镜用 camera_moves 里对应的英文写法，并写入当前场记里的服装、位置、手持物和光线方向
 
 额外要求：

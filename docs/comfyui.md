@@ -183,3 +183,13 @@ RTX 4090 实测：1920x1088 文生图约 64 秒，带两张参考图的 1344x768
 ## T8 节点（MiniMax H3 Audio T8）
 
 OneThingAI 服务器已装 T8 v1.104.0（commit 3a23f33，GPL-3.0，仅装在服务器上，不随本仓库分发）。只装了代码（排除 examples/tests/docs），无额外 pip 依赖。服务器连 GitHub 不稳定时，在本机 clone 后 scp 上传。T8 的人物音色 / 对白需要角色声音样本或台词录音，尚未接入火宝流程。
+
+## 台词配音（TTS）：IndexTTS2
+
+台词驱动剧本里，只有对口型台词（`shot_spec.dialogue`）由 H3 在视频里说（用角色音色样本做 `#角色名` 参考）；`[VO]` 内心独白、`[OS]` 画外音、只配音的角色（项目 metadata `dub_only_characters`，如簿簿、线团团）的台词写进 `shot_spec.voiceover`，由 TTS 配音，拼接成片时混入。名条和 `[画面文字]`（`shot_spec.onscreen_text`）拼接时用 FFmpeg 叠加（字体：`SUBTITLE_FONT`，Windows 默认微软雅黑）。
+
+- **节点**：[snicolast/ComfyUI-IndexTTS2](https://github.com/snicolast/ComfyUI-IndexTTS2)（IndexTTS-2，零样本克隆音色 + 情绪向量）。安装脚本 `docs/server/install_indextts2.sh`。上游 README 写的是只在 Windows 测过，Linux 上首次运行请先在 ComfyUI 界面里手动跑通一次。
+- **音色**：在角色页给每个角色上传 5-15 秒参考人声（`voice_audio_url`）。同一个人的不同造型（太白金星·天庭 / 太白金星·物业）、编号群角色（线团团甲/乙/丙）共用一个音色。
+- **工作流**：默认内置（LoadAudio → IndexTTS2EmotionVector → IndexTTS2Simple → IndexTTS2SaveAudio），复用分集视频配置的 ComfyUI 地址；可在视频配置 settings 里用 `ttsWorkflow` 换成自己的 API 格式工作流，占位符 `{{text}} {{audio}} {{name}}` 和 8 个情绪 `{{happy}}…{{calm}}`。表演提示（tone）按关键词换成情绪向量（`services/tts.ts emotionFromTone`）。
+- **接口**：`POST /episodes/:id/voices {force?, storyboard_ids?}` 后台按句生成，结果写进分镜 `voice_tracks`；`GET /episodes/:id/voices` 查状态；`GET /episodes/:id/line-sheet` 导出按角色分好的台词清单。工作台「生成配音」「台词清单」按钮对应这两个接口。
+- **合成**：拼接成片时，只要有镜头带配音或画面文字，就逐镜混音（原声 0.8 + 配音，配音默认排在对口型台词说完之后）、叠字，再拼接。
