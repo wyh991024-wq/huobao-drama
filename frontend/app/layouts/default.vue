@@ -4,13 +4,10 @@
     <header class="header">
       <div class="header-left">
         <button class="brand" @click="navigateTo('/')">
-          <div class="brand-mark">
-            <img v-if="showBrandImage" :src="brandLogo" alt="火宝短剧" class="brand-logo" @error="showBrandImage = false" />
-            <span v-else class="brand-fallback">火</span>
-          </div>
+          <ReeloLogo :size="26" />
           <div class="brand-text">
-            <span class="brand-name">火宝短剧</span>
-            <span class="brand-sub">Huobao Shorts</span>
+            <span class="brand-name">Reelo</span>
+            <span class="brand-sub">AI Shorts Studio</span>
           </div>
         </button>
       </div>
@@ -59,11 +56,9 @@
 import { LayoutGrid, Settings, TriangleAlert, Github } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { aiConfigAPI } from '~/composables/useApi'
-import brandLogo from '~/assets/brand-logo.png'
 
 const { t, locale } = useI18n()
 const route = useRoute()
-const showBrandImage = ref(true)
 
 // 渲染时求值，语言切换即时生效（不能模块级常量固化）
 const SERVICE_TYPE_LABELS = computed(() => ({
@@ -100,9 +95,9 @@ watch(locale, checkAiConfigs)
 /* === Header === */
 .header {
   display: flex; align-items: center;
-  height: 60px; flex-shrink: 0;
-  padding: 0 24px;
-  gap: 32px;
+  height: 52px; flex-shrink: 0;
+  padding: 0 16px;
+  gap: 24px;
   background: var(--header-bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -123,45 +118,24 @@ watch(locale, checkAiConfigs)
   outline: none;
   box-shadow: 0 0 0 3.5px var(--button-focus);
 }
-.brand-mark {
-  width: 32px; height: 32px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 9px;
-  overflow: hidden;
-}
-.brand-logo {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-  display: block;
-}
-.brand-fallback {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-0);
-  line-height: 1;
-}
 .brand-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
 .brand-name {
-  font-size: 15px; font-weight: 700;
-  /* ChatFire 签名：品牌字标火焰橙渐变 */
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  letter-spacing: -0.01em;
+  font-size: 15px; font-weight: 750;
+  color: var(--text-0);
+  letter-spacing: -0.03em;
 }
 .brand-sub {
-  font-size: 10px; font-weight: 400;
+  font-size: 9.5px; font-weight: 600;
   color: var(--text-3); margin-top: 1px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* Nav — pill segmented group */
 .header-nav {
   display: flex; gap: 2px;
   padding: 3px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius);
   background: var(--overlay-track);
 }
 
@@ -189,8 +163,8 @@ watch(locale, checkAiConfigs)
 }
 .nav-link {
   display: flex; align-items: center; gap: 6px;
-  min-height: 32px;
-  padding: 0 16px; border-radius: var(--radius-pill);
+  min-height: 30px;
+  padding: 0 14px; border-radius: var(--radius-sm);
   font-size: 13px; font-weight: 600;
   color: var(--text-2); text-decoration: none;
   transition: all 0.18s var(--ease-out);
