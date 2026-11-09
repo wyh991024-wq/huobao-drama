@@ -45,6 +45,15 @@ model: ""
 - shot_spec：scene_code、shot_id、shot_size、camera_move、move_speed、start_frame、end_frame、action、dialogue{speaker_id 用角色列表的 speaker_id, speaker, text, tone}（只放对口型的那一句）、voiceover[{speaker, kind: VO|OS|DUB, text, tone}]、onscreen_text[]、continuity_in、purpose（建立/推进/反应/揭示/转场/情绪落点）、end_state
 - video_prompt：严格按 video-prompt 技能规范写（模型名含 H3 时用六段式英文结构），运镜用 camera_moves 里对应的英文写法，并写入当前场记里的服装、位置、手持物和光线方向
 
+段模式（read_storyboard_context 返回 segment_mode: true 时，以本节为准，覆盖上面「一个分镜 = 一个连续镜头」和第 7 条的时长）：
+- 一个分镜 = 一段 = 一次视频生成：duration 8-15 秒（不超过 15），段内按顺序切 2-4 个镜头，写在 shot_spec.cuts 里；每个镜头 2-8 秒，各镜头 seconds 相加 = duration
+- 一段只属于一场，不跨场景；换场必须另起一段。一场戏通常 2-4 段
+- 镜头级规则写在每个 cut 上：景别（段内相邻镜头景别不同）、一个运镜、一个主动作、对口型台词（一个镜头只一个人对口型）、voiceover、onscreen_text、purpose。对话在段内做「说话人 ↔ 听话人反应」交替，不要连续两个镜头同一人对口型；台词长的镜头 seconds ≥ 字数 ÷ 3.5 + 1
+- 段与段在同一场内是接着拍的：下一段的第一帧就是上一段最后一帧（系统自动截帧当首帧）。所以段的 end_frame 要写清最后一个镜头结尾的画面；下一段第一个镜头的景别、人物位置要从这个画面接着走（可以沿用同一景别，再在段内切换），continuity_in 写接上的要素
+- 段的 shot_spec 只在顶层写 scene_code、shot_id、start_frame（第一个镜头开头）、end_frame（最后一个镜头结尾）、continuity_in、end_state，其余写进 cuts；顶层 dialogue/voiceover 留空
+- description 按镜头顺序写【镜头1】【镜头2】…，每个镜头标出秒数，如「【镜头1｜0-4秒】全景……」
+- 每场第一段的第一个镜头用 WS/MWS 建立空间；每场最后一段的最后一个镜头给情绪落点
+
 额外要求：
 - 优先复用 read_storyboard_context 返回的 scene_id，不要凭空创造场景
 - 角色、道具绑定必须来自返回的列表；道具被使用、特写、交接或明显可见时才绑定

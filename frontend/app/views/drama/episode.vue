@@ -517,6 +517,21 @@
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                   {{ videoSelectMode && selectedVideoSbIds.length ? t('episode.vid.batchSelected', { n: selectedVideoSbIds.length }) : t('episode.vid.batchVideos') }}
                 </button>
+                <span class="chain-controls" :title="t('episode.chain.hint')">
+                  <select v-model="chain.mode" class="chain-select" :disabled="chain.running">
+                    <option value="first_frame">{{ t('episode.chain.modeFirst') }}</option>
+                    <option value="reference">{{ t('episode.chain.modeRef') }}</option>
+                  </select>
+                  <select v-model="chain.limit" class="chain-select" :disabled="chain.running">
+                    <option :value="0">{{ t('episode.chain.all') }}</option>
+                    <option :value="3">{{ t('episode.chain.first3') }}</option>
+                  </select>
+                  <button v-if="!chain.running" class="btn btn-sm btn-primary" :disabled="!sbs.length" @click="startChain">{{ t('episode.chain.run') }}</button>
+                  <template v-else>
+                    <span class="chain-progress">{{ t('episode.chain.running', { done: chain.done, total: chain.total || '…' }) }}</span>
+                    <button class="btn btn-sm" @click="stopChain">{{ t('episode.chain.stop') }}</button>
+                  </template>
+                </span>
               </div>
             </div>
             <div v-if="!sbs.length" class="step-empty video-task-empty-state">
@@ -2881,6 +2896,54 @@ async function regenLine(ln) {
   } catch (e) { toastError(e) }
   finally { ln.busy = false }
 }
+// 按顺序生成整集（段模式）：同一场内上一段末帧接下一段开头，后端一段一段提交
+const chain = reactive({ mode: 'first_frame', limit: 0, running: false, done: 0, total: 0 })
+async function startChain() {
+  if (!epId.value || chain.running) return
+  const range = chain.limit ? t('episode.chain.first3') : t('episode.chain.all')
+  const mode = chain.mode === 'reference' ? t('episode.chain.modeRef') : t('episode.chain.modeFirst')
+  if (!window.confirm(t('episode.chain.confirm', { range, mode }))) return
+  try {
+    const r = await episodeAPI.chainVideos(epId.value, { mode: chain.mode, limit: chain.limit || undefined })
+    if (r?.started === false) throw new Error(t('episode.chain.busy'))
+    await pollChain()
+  } catch (e) { toastError(e) }
+}
+async function pollChain() {
+  chain.running = true
+  try {
+    for (;;) {
+      const st = await episodeAPI.chainVideosStatus(epId.value)
+      if (!st) break
+      chain.done = st.done || 0
+      chain.total = st.total || 0
+      if (st.status !== 'running') {
+        if (st.status === 'done') toast.success(t('episode.chain.done', { done: st.done, total: st.total }))
+        else if (st.error) toast.error(st.error)
+        break
+      }
+      await new Promise(r => setTimeout(r, 5000))
+      await refresh()
+    }
+    await refresh()
+  } catch (e) { toastError(e) }
+  finally { chain.running = false }
+}
+async function stopChain() {
+  try {
+    await episodeAPI.stopChainVideos(epId.value)
+    toast.success(t('episode.chain.stopped'))
+  } catch (e) { toastError(e) }
+}
+// 打开页面时如果后端还在顺序生成，接着显示进度
+watch(epId, async (id) => {
+  if (!id) return
+  try {
+    const st = await episodeAPI.chainVideosStatus(id)
+    if (st?.status === 'running' && !chain.running) pollChain()
+  } catch { /* 状态查询失败不影响页面 */ }
+}, { immediate: true })
+
 async function redesignVoice(ch) {
   if (voiceRunning.value || !window.confirm(t('episode.voice.redesignConfirm', { name: ch.name, n: ch.lines }))) return
   voiceRunning.value = true
@@ -5693,6 +5756,9 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 .voice-track { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.4; }
 .voice-track audio { width: 100%; height: 28px; }
 .voice-track-error { color: #d9534f; }
+.chain-controls { display: inline-flex; align-items: center; gap: 6px; padding-left: 8px; margin-left: 2px; border-left: 1px solid var(--border); }
+.chain-select { height: var(--button-height-sm); padding: 0 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text-1); font: 500 12px var(--font-body); }
+.chain-progress { font-size: 12px; color: var(--accent-text); font-variant-numeric: tabular-nums; }
 .voice-panel-dialog { width: min(1180px, calc(100vw - 56px)); display: flex; flex-direction: column; }
 .voice-panel-body { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px 18px; overflow: auto; min-height: 0; flex: 1; }
 .voice-chars, .voice-lines { display: flex; flex-direction: column; gap: 10px; min-width: 0; }

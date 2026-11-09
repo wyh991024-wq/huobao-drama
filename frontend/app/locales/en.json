@@ -992,6 +992,20 @@
         "OS": "Off-screen",
         "DUB": "Dub"
       }
+    },
+    "chain": {
+      "run": "Generate in order",
+      "hint": "Within a scene, the last frame of each segment becomes the opening of the next; segments run one by one",
+      "modeFirst": "First-frame link",
+      "modeRef": "Last frame as reference",
+      "all": "All segments",
+      "first3": "Trial: first 3",
+      "confirm": "Generate this episode in order ({range}, {mode})? Segments that already have video are skipped.",
+      "running": "In order {done}/{total}",
+      "stop": "Stop",
+      "stopped": "Stopped: the segment in progress will finish; cancel it in the task list if needed",
+      "done": "Done in order: {done}/{total} segments",
+      "busy": "This episode is already generating in order"
     }
   },
   "errors": {

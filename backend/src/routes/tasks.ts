@@ -182,7 +182,8 @@ app.post('/', async (c) => {
     }
 
     // 关键帧是可选功能：项目没启用时，分镜视频一律走纯参考图，忽略首尾帧
-    if (type === 'video' && videoBody && body.storyboard_id && (videoBody.first_frame_url || videoBody.last_frame_url)
+    // （顺序生成整集时段与段衔接用的首帧 chain_first_frame 除外）
+    if (type === 'video' && videoBody && body.storyboard_id && body.chain_first_frame !== true && (videoBody.first_frame_url || videoBody.last_frame_url)
       && !videoBody.official_media.length && !(await keyframesEnabled(body.drama_id ?? storyboardDramaId))) {
       videoBody.first_frame_url = undefined
       videoBody.last_frame_url = undefined

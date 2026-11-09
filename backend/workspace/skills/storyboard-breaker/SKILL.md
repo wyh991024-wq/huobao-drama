@@ -12,6 +12,14 @@ description: 分镜拆解专业规范 — 导演规则、运镜模板库与场�
 - 每个分镜 **5-8 秒**，只有一个景别、一种运镜、一个主动作，内部不切镜
 - 镜头之间的切换由后期剪辑完成，所以要按剪辑思维设计景别轮换、反应镜头和动作衔接
 
+### 段模式（项目 segment_mode=true）
+
+一个分镜 = 一段 = 一次视频生成，段内自己切镜头：
+
+- 每段 8-15 秒，段内 2-4 个镜头写在 `shot_spec.cuts`（每个 cut 有 seconds、shot_size、camera_move、action、dialogue、voiceover、onscreen_text、purpose），seconds 之和 = duration
+- 一段只属于一场；同一场的段与段之间，系统会把上一段最后一帧截下来当下一段首帧，所以段的 `end_frame` 写清结尾画面，下一段第一个镜头从这个画面接着演，`continuity_in` 写接上的要素
+- 景别轮换、反应镜头、对白时长、情绪落点这些规则按段内镜头检查；段与段交界处允许沿用同一景别
+
 ## 拆分流程
 
 1. 调用 `read_storyboard_context` 读取剧本、角色（含 speaker_id）、场景、道具、运镜模板库

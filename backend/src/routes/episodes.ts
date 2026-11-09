@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { batchKeyframes } from '../services/keyframes.js'
 import { enhanceEpisodeVideos } from '../services/enhance.js'
 import { episodeLineSheet, episodeVoiceLines, getEpisodeVoicesStatus, startEpisodeVoices, startRedesignVoice } from '../services/tts.js'
+import { getEpisodeChainStatus, startEpisodeChain, stopEpisodeChain } from '../services/episode-chain.js'
 import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
@@ -183,6 +184,22 @@ app.post('/:id/voices', async (c) => {
 
 // GET /episodes/:id/voices — 配音任务状态
 app.get('/:id/voices', (c) => success(c, getEpisodeVoicesStatus(Number(c.req.param('id')))))
+
+// POST /episodes/:id/chain-videos { mode?: first_frame|reference, limit?, from?, force?, config_id?, model? }
+// 按顺序生成整集视频：同一场内上一段出完截末帧接下一段（后台，GET 查状态，POST /stop 停止）
+app.post('/:id/chain-videos', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  return success(c, startEpisodeChain(Number(c.req.param('id')), {
+    mode: body.mode === 'reference' ? 'reference' : 'first_frame',
+    limit: Number(body.limit) > 0 ? Number(body.limit) : undefined,
+    from: Number(body.from) > 0 ? Number(body.from) : undefined,
+    force: !!body.force,
+    configId: Number(body.config_id) > 0 ? Number(body.config_id) : undefined,
+    model: body.model || undefined,
+  }))
+})
+app.get('/:id/chain-videos', (c) => success(c, getEpisodeChainStatus(Number(c.req.param('id')))))
+app.post('/:id/chain-videos/stop', (c) => success(c, stopEpisodeChain(Number(c.req.param('id')))))
 
 // GET /episodes/:id/voice-lines — 配音面板：本集说话的角色（音色、音色描述）和逐句音频
 app.get('/:id/voice-lines', async (c) => {

@@ -20,7 +20,7 @@ import { STORAGE_ROOT } from '../utils/paths.js'
 import { getAbsolutePath } from '../utils/storage.js'
 import { joinProviderUrl } from './adapters/url.js'
 import { collectPlaceholders, substitutePlaceholders, describeExecutionError, type Workflow } from './adapters/comfyui-video.js'
-import { parseShotSpec } from './director.js'
+import { cutWindows, parseShotSpec } from './director.js'
 import { logTaskError, logTaskProgress, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 
 export interface VoiceTrack {
@@ -94,14 +94,36 @@ function findVoice(speaker: string, chars: Awaited<ReturnType<typeof voiceCharac
     || null
 }
 
-/** 从分镜的 shot_spec 整理出本镜要说的台词（对口型在前，配音按顺序） */
-export function linesOfShot(spec: ReturnType<typeof parseShotSpec>): Omit<VoiceTrack, 'character_id'>[] {
-  const out: Omit<VoiceTrack, 'character_id'>[] = []
-  if (spec?.dialogue?.text?.trim()) out.push({ kind: 'LIP', speaker: (spec.dialogue.speaker || '').trim(), text: spec.dialogue.text.trim(), tone: spec.dialogue.tone })
-  for (const v of spec?.voiceover || []) {
-    if (v?.text?.trim()) out.push({ kind: (v.kind || 'VO').toUpperCase(), speaker: (v.speaker || '').trim(), text: v.text.trim(), tone: v.tone })
+type LineSlot = { kind: string; speaker?: string | null; text?: string | null; tone?: string | null; at?: number }
+const speechSeconds = (t: string) => t.replace(/[^一-鿿A-Za-z0-9]/g, '').length / 3.5
+
+/**
+ * 按说出顺序列出本镜（段）的台词槽位，元素是 shot_spec 里的原对象（改它就是改 shot_spec）。
+ * 段模式按 cuts 顺序，每句带上在段内开始的秒数 at：对口型从镜头开头说，配音排在本镜头对口型说完之后
+ */
+function lineSlots(spec: ReturnType<typeof parseShotSpec>, duration = 15): { slot: { text?: string | null; tone?: string | null }; line: LineSlot }[] {
+  const out: { slot: { text?: string | null; tone?: string | null }; line: LineSlot }[] = []
+  const push = (part: { dialogue?: any; voiceover?: any[] | null }, start?: number) => {
+    const lip = part.dialogue?.text?.trim()
+    if (lip) out.push({ slot: part.dialogue, line: { kind: 'LIP', speaker: part.dialogue.speaker, text: lip, tone: part.dialogue.tone, at: start } })
+    let cursor = start === undefined ? undefined : start + (lip ? speechSeconds(lip) + 0.6 : 0.3)
+    for (const v of part.voiceover || []) {
+      if (!v?.text?.trim()) continue
+      out.push({ slot: v, line: { kind: (v.kind || 'VO').toUpperCase(), speaker: v.speaker, text: v.text.trim(), tone: v.tone, at: cursor } })
+      if (cursor !== undefined) cursor += speechSeconds(v.text) + 0.4
+    }
   }
+  if (spec?.cuts?.length) for (const w of cutWindows(spec, duration)) push(w, Math.round(w.start * 10) / 10)
+  else if (spec) push(spec)
   return out
+}
+
+/** 从分镜的 shot_spec 整理出本镜要说的台词（对口型在前，配音按顺序；段模式按镜头顺序并带段内起始秒数） */
+export function linesOfShot(spec: ReturnType<typeof parseShotSpec>, duration?: number): Omit<VoiceTrack, 'character_id'>[] {
+  return lineSlots(spec, duration).map(({ line }) => ({
+    kind: line.kind, speaker: (line.speaker || '').trim(), text: String(line.text).trim(), tone: line.tone || undefined,
+    ...(line.at !== undefined ? { at: line.at } : {}),
+  }))
 }
 
 async function comfyConfig(episodeId: number) {
@@ -321,10 +343,10 @@ const sameLine = (t: VoiceTrack | undefined, line: Omit<VoiceTrack, 'character_i
 async function voiceShot(ctx: VoiceCtx, sb: Storyboard, redo: (t: VoiceTrack, i: number) => boolean, fresh = false) {
   let old: VoiceTrack[] = []
   try { old = JSON.parse(sb.voiceTracks || '[]') } catch {}
-  const tracks: VoiceTrack[] = linesOfShot(parseShotSpec(sb.shotSpec)).map((line, i) => {
+  const tracks: VoiceTrack[] = linesOfShot(parseShotSpec(sb.shotSpec), sb.duration || undefined).map((line, i) => {
     const t: VoiceTrack = { ...line, character_id: findVoice(line.speaker, ctx.chars)?.id ?? null }
     const prev = old[i]
-    return prev?.url && sameLine(prev, line) && !redo(t, i) ? { ...t, url: prev.url, seconds: prev.seconds, at: prev.at } : t
+    return prev?.url && sameLine(prev, line) && !redo(t, i) ? { ...t, url: prev.url, seconds: prev.seconds, at: t.at ?? prev.at } : t
   })
   for (const [i, t] of tracks.entries()) {
     if (t.url) continue
@@ -375,17 +397,14 @@ export async function regenerateLine(storyboardId: number, index: number, edit: 
   if (!sb || sb.deletedAt) throw new Error('分镜不存在')
   const spec = parseShotSpec(sb.shotSpec)
   if (!spec) throw new Error('这一镜没有结构化台词')
-  const hasLip = !!spec.dialogue?.text?.trim()
-  const slot: { text?: string | null; tone?: string | null } | undefined = index === 0 && hasLip
-    ? spec.dialogue!
-    : (spec.voiceover || []).filter(v => v?.text?.trim())[index - (hasLip ? 1 : 0)]
+  const slot = lineSlots(spec, sb.duration || undefined)[index]?.slot
   if (!slot) throw new Error(`第 ${index + 1} 句不存在`)
   if (edit.text?.trim()) slot.text = edit.text.trim()
   if (edit.tone !== undefined) slot.tone = edit.tone.trim() || undefined
   sb.shotSpec = JSON.stringify(spec)
   await db.update(schema.storyboards).set({ shotSpec: sb.shotSpec, updatedAt: now() }).where(eq(schema.storyboards.id, sb.id))
   const ctx = await voiceContext(sb.episodeId)
-  const speaker = linesOfShot(spec)[index]?.speaker || ''
+  const speaker = linesOfShot(spec, sb.duration || undefined)[index]?.speaker || ''
   const designErrors = findVoice(speaker, ctx.chars) ? new Map<string, string>() : await ensureVoices(ctx, [speaker])
   const track = (await voiceShot(ctx, sb, (_t, i) => i === index, true))[index]
   if (!track?.url) throw new Error(track?.error || designErrors.get(baseName(speaker)) || '生成失败')

@@ -116,26 +116,46 @@ const characterStateSchema = z.object({
 })
 
 /** 导演参数（漫剧流水线升级 4.1 节） */
+const dialogueSchema = z.object({ speaker_id: z.string().optional(), speaker: z.string().optional(), text: z.string().optional(), tone: z.string().optional() }).nullable().optional()
+  .describe('对口型台词：画面里正在张嘴说话的那一个人。一镜只能有一个人对口型')
+const voiceoverSchema = z.array(z.object({
+  speaker: z.string().optional(),
+  kind: z.string().optional().describe('VO=内心独白/旁白，OS=人在现场但不入镜，DUB=只配音不对口型的角色（簿簿、线团团等）'),
+  text: z.string().optional(),
+  tone: z.string().optional(),
+})).nullable().optional().describe('后期配音的台词，按说出顺序排列，可叠在任何镜头上；不写进 video_prompt')
+const onscreenSchema = z.array(z.string()).nullable().optional().describe('剧本 [画面文字] 和名条（如「陆衍｜离婚律师」「大屏：阿缘 0 对」）：后期叠加，不写进 video_prompt')
+
+/** 段内一个镜头 */
+const cutSchema = z.object({
+  seconds: z.number().describe('本镜头秒数，段内各镜头相加 = 段的 duration'),
+  shot_size: z.string().describe('CU|MCU|MS|MWS|WS|EWS'),
+  camera_move: z.string().describe('运镜模板 ID，只能选一个'),
+  move_speed: z.string().optional(),
+  action: z.string().describe('本镜头的单一主动作'),
+  start_frame: z.string().optional(),
+  end_frame: z.string().optional(),
+  dialogue: dialogueSchema,
+  voiceover: voiceoverSchema,
+  onscreen_text: onscreenSchema,
+  purpose: z.string().optional().describe('建立/推进/反应/揭示/转场/情绪落点'),
+})
+
 const shotSpecSchema = z.object({
   shot_id: z.string().optional().describe('如 E01-S02-05'),
   scene_code: z.string().describe('所属场，如 E01-S02，必须与 save_scene_continuity 中的 scene_code 一致'),
-  shot_size: z.string().describe('CU|MCU|MS|MWS|WS|EWS'),
-  camera_move: z.string().describe('运镜模板 ID，只能选一个'),
+  shot_size: z.string().optional().describe('CU|MCU|MS|MWS|WS|EWS（段模式写在 cuts 里）'),
+  camera_move: z.string().optional().describe('运镜模板 ID，只能选一个（段模式写在 cuts 里）'),
   move_speed: z.string().optional().describe('slow|medium|fast'),
-  start_frame: z.string().describe('镜头开始时：谁在什么位置、什么姿势、看向哪里'),
-  end_frame: z.string().describe('镜头结束时：同上'),
-  action: z.string().describe('镜头内的单一主动作'),
-  dialogue: z.object({ speaker_id: z.string().optional(), speaker: z.string().optional(), text: z.string().optional(), tone: z.string().optional() }).nullable().optional()
-    .describe('对口型台词：画面里正在张嘴说话的那一个人。一镜只能有一个人对口型'),
-  voiceover: z.array(z.object({
-    speaker: z.string().optional(),
-    kind: z.string().optional().describe('VO=内心独白/旁白，OS=人在现场但不入镜，DUB=只配音不对口型的角色（簿簿、线团团等）'),
-    text: z.string().optional(),
-    tone: z.string().optional(),
-  })).nullable().optional().describe('后期配音的台词，按说出顺序排列，可叠在任何镜头上；不写进 video_prompt'),
-  onscreen_text: z.array(z.string()).nullable().optional().describe('剧本 [画面文字] 和名条（如「陆衍｜离婚律师」「大屏：阿缘 0 对」）：后期叠加，不写进 video_prompt'),
-  continuity_in: z.string().optional().describe('必须与上一镜 end_frame 一致的要素'),
-  purpose: z.string().describe('建立/推进/反应/揭示/转场/情绪落点'),
+  start_frame: z.string().describe('开始时：谁在什么位置、什么姿势、看向哪里（段模式 = 第一个镜头的开头）'),
+  end_frame: z.string().describe('结束时：同上（段模式 = 最后一个镜头的结尾，下一段的首帧就从这一帧截）'),
+  action: z.string().optional().describe('镜头内的单一主动作（段模式写在 cuts 里，这里可写本段一句话概要）'),
+  dialogue: dialogueSchema,
+  voiceover: voiceoverSchema,
+  onscreen_text: onscreenSchema,
+  cuts: z.array(cutSchema).nullable().optional().describe('段模式：本段（≤15 秒、一次生成）内按顺序切的 2-4 个镜头；有 cuts 时景别/运镜/动作/台词都写在镜头里'),
+  continuity_in: z.string().optional().describe('必须与上一镜（段）end_frame 一致的要素'),
+  purpose: z.string().optional().describe('建立/推进/反应/揭示/转场/情绪落点'),
   // 宽松接收：模型偶尔把状态写成字符串或嵌套对象，不能因此整批保存失败
   end_state: z.object({
     characters: z.record(z.string(), z.any()).optional(),
@@ -177,6 +197,12 @@ async function dubOnlyCharacters(dramaId: number): Promise<string[]> {
     const list = JSON.parse(drama?.metadata || '{}')?.dub_only_characters
     return Array.isArray(list) ? list : []
   } catch { return [] }
+}
+
+/** 项目是否按段拆分镜（metadata.segment_mode：一条分镜 = 一段 ≤15 秒、段内 2-4 个镜头、一次生成） */
+export async function segmentMode(dramaId: number): Promise<boolean> {
+  const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, dramaId))
+  try { return JSON.parse(drama?.metadata || '{}')?.segment_mode === true } catch { return false }
 }
 
 function requireIds(context: ToolContext): { episodeId: number; dramaId: number } | { error: string } {
@@ -315,6 +341,8 @@ const readStoryboardContext = createTool({
       pov_script: isPovScript(script),
       // 只配音不对口型的角色：台词一律写进 shot_spec.voiceover（kind=DUB）
       dub_only_characters: await dubOnlyCharacters(dramaId),
+      // true 时按「段」拆：每条分镜 ≤15 秒，shot_spec.cuts 里写段内 2-4 个镜头（见提示词「段模式」）
+      segment_mode: await segmentMode(dramaId),
     }
     logTaskSuccess('StoryboardTool', 'read-context', {
       episodeId,
@@ -351,11 +379,17 @@ const storyboardFields = z.object({
   shot_spec: shotSpecSchema.optional(),
 })
 
-const specColumns = (spec: any, fallback: { shot_type?: string; movement?: string }) => spec ? {
-  shotSpec: JSON.stringify(spec),
-  shotType: spec.shot_size || fallback.shot_type,
-  movement: spec.camera_move ? `${spec.camera_move}${spec.move_speed ? '/' + spec.move_speed : ''}` : fallback.movement,
-} : {}
+// 段模式：列表里显示各镜头景别/运镜串起来，如 WS→MCU→CU
+const specColumns = (spec: any, fallback: { shot_type?: string; movement?: string }) => {
+  if (!spec) return {}
+  const move = (s: any) => s.camera_move ? `${s.camera_move}${s.move_speed ? '/' + s.move_speed : ''}` : ''
+  const cuts: any[] = Array.isArray(spec.cuts) ? spec.cuts : []
+  return {
+    shotSpec: JSON.stringify(spec),
+    shotType: (cuts.length ? cuts.map(c => c.shot_size).filter(Boolean).join('→') : spec.shot_size) || fallback.shot_type,
+    movement: (cuts.length ? cuts.map(move).filter(Boolean).join('→') : move(spec)) || fallback.movement,
+  }
+}
 
 const saveStoryboards = createTool({
   id: 'save_storyboards',

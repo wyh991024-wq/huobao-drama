@@ -11,7 +11,7 @@ import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger
 import { extractVideoPoster } from '../utils/video-poster.js'
 import { ffmpeg, checkFfmpegSuite } from '../utils/ffmpeg.js'
 import { DATA_ROOT, STORAGE_ROOT } from '../utils/paths.js'
-import { parseShotSpec } from './director.js'
+import { cutWindows, parseShotSpec } from './director.js'
 import type { VoiceTrack } from './tts.js'
 
 function toAbsPath(relativePath: string): string {
@@ -179,22 +179,26 @@ function getVideoDuration(filePath: string): Promise<number> {
 export interface ClipPost {
   /** 后期配音（VO/OS/DUB），对口型台词由视频自带 */
   voices: { file: string; at?: number; chars: number }[]
-  /** 名条与画面文字 */
-  texts: string[]
+  /** 名条与画面文字；段模式下带所在镜头的起止秒数，只在那个镜头里显示 */
+  texts: { text: string; start?: number; end?: number }[]
   /** 本镜对口型台词字数：配音默认排在它说完之后 */
   lipChars?: number
 }
 
 const countChars = (t: string) => t.replace(/[^一-鿿A-Za-z0-9]/g, '').length
 
-function postOf(sb: { shotSpec: string | null; voiceTracks?: string | null }): ClipPost {
+function postOf(sb: { shotSpec: string | null; voiceTracks?: string | null; duration?: number | null }): ClipPost {
   const spec = parseShotSpec(sb.shotSpec)
   let tracks: VoiceTrack[] = []
   try { tracks = JSON.parse(sb.voiceTracks || '[]') } catch {}
   return {
     voices: tracks.filter(t => t.kind !== 'LIP' && t.url && fs.existsSync(toAbsPath(t.url)))
       .map(t => ({ file: toAbsPath(t.url!), at: t.at, chars: countChars(t.text) })),
-    texts: (spec?.onscreen_text || []).map(t => String(t).trim()).filter(Boolean),
+    texts: spec?.cuts?.length
+      ? cutWindows(spec, sb.duration || 15)
+        .flatMap(w => (w.onscreen_text || []).map(t => ({ text: String(t).trim(), start: w.start, end: w.end })))
+        .filter(t => t.text)
+      : (spec?.onscreen_text || []).map(t => ({ text: String(t).trim() })).filter(t => t.text),
     lipChars: spec?.dialogue?.text ? countChars(spec.dialogue.text) : 0,
   }
 }
@@ -252,7 +256,7 @@ export async function dubClip(input: string, post: ClipPost, output: string) {
     const fontArg = ffEscapePath(font)
     const chain: string[] = []
     let top = 0
-    for (const raw of post.texts) {
+    for (const { text: raw, start, end } of post.texts) {
       const isName = /^名条[：:]/.test(raw)
       const text = raw.replace(/^(名条|画面文字|大屏|平板|屏幕)[：:]\s*/, '')
       const tf = path.join(path.dirname(output), `txt-${uuid()}.txt`)
@@ -260,8 +264,8 @@ export async function dubClip(input: string, post: ClipPost, output: string) {
       tempTexts.push(tf)
       const tfArg = ffEscapePath(tf)
       chain.push(isName
-        ? `drawtext=fontfile='${fontArg}':textfile='${tfArg}':fontsize=h/26:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=18:x=w*0.06:y=h*0.72:enable='between(t,0.5,4)'`
-        : `drawtext=fontfile='${fontArg}':textfile='${tfArg}':fontsize=h/30:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=14:x=(w-text_w)/2:y=h*0.08+${top}*h*0.06`)
+        ? `drawtext=fontfile='${fontArg}':textfile='${tfArg}':fontsize=h/26:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=18:x=w*0.06:y=h*0.72:enable='between(t,${(start ?? 0) + 0.5},${Math.min((start ?? 0) + 4, end ?? 1e9)})'`
+        : `drawtext=fontfile='${fontArg}':textfile='${tfArg}':fontsize=h/30:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=14:x=(w-text_w)/2:y=h*0.08+${top}*h*0.06${start !== undefined ? `:enable='between(t,${start},${end})'` : ''}`)
       if (!isName) top++
     }
     filters.push(`[0:v]${chain.join(',')}[vout]`)
