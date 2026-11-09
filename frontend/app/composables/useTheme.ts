@@ -20,7 +20,7 @@ export function readStoredThemeMode(): ThemeMode {
     const v = localStorage.getItem(THEME_STORAGE_KEY)
     if (v && (THEME_MODES as string[]).includes(v)) return v as ThemeMode
   } catch { /* localStorage 不可用时回退默认 */ }
-  return 'system'
+  return 'dark' // Reelo 默认深色剪辑台
 }
 
 export function persistThemeMode(mode: ThemeMode) {

@@ -1,100 +1,102 @@
-/* === HuoBao Studio — ChatFire 火焰橙 × 现代 SaaS (light / dark) === */
+/* === Reelo — 剪辑台石墨灰 × 珊瑚红 (dark 默认 / light) === */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --surface-base: #f7f8fa;
+  /* 浅色：暖白纸面 + 石墨字 + Reelo 珊瑚红 */
+  --surface-base: #f4f4f2;
   --surface-raised: #ffffff;
-  --surface-muted: #f7f8fa;
-  --surface-soft: #fafbfc;
+  --surface-muted: #f4f4f2;
+  --surface-soft: #f9f9f7;
   --surface-input: #ffffff;
-  --surface-outline: #e7e9ee;
-  --surface-outline-strong: #d6dae1;
+  --surface-outline: #e3e3df;
+  --surface-outline-strong: #d0d0ca;
 
   --bg-base: var(--surface-base);
-  --bg-0: #fafbfc;
+  --bg-0: #f9f9f7;
   --bg-1: #ffffff;
-  --bg-2: #f1f3f6;
-  --bg-3: #e7e9ee;
-  --bg-hover: rgba(23,24,26,0.045);
-  --bg-active: rgba(23,24,26,0.07);
+  --bg-2: #efefec;
+  --bg-3: #e3e3df;
+  --bg-hover: rgba(20,20,22,0.05);
+  --bg-active: rgba(20,20,22,0.08);
   --bg-input: var(--surface-input);
   --bg-surface: var(--surface-raised);
 
-  --border: #e7e9ee;
-  --border-strong: #d6dae1;
-  --border-focus: #f97316;
+  --border: #e3e3df;
+  --border-strong: #d0d0ca;
+  --border-focus: #e5484d;
 
-  --text-0: #17181a;
-  --text-1: #3a3f47;
-  --text-2: #5c6370;
-  --text-3: #9aa1ad;
+  --text-0: #161618;
+  --text-1: #34353a;
+  --text-2: #5d5f66;
+  --text-3: #95979e;
 
-  /* ChatFire 火焰橙（platform 品牌色） */
-  --accent: #f97316;
-  --accent-dark: #c2410c;
-  --accent-bg: rgba(249,115,22,0.10);
-  --accent-text: #ea580c;
-  --accent-glow: rgba(249,115,22,0.20);
-  --accent-gradient: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+  /* Reelo 珊瑚红（录制指示灯） */
+  --accent: #e5484d;
+  --accent-dark: #c4353a;
+  --accent-bg: rgba(229,72,77,0.10);
+  --accent-text: #d13438;
+  --accent-glow: rgba(229,72,77,0.22);
+  --accent-gradient: linear-gradient(180deg, #ec5a5f 0%, #e5484d 100%);
 
-  --action-primary: #f97316;
-  --action-primary-hover: #ea580c;
-  --action-primary-press: #c2410c;
+  --action-primary: #e5484d;
+  --action-primary-hover: #d13438;
+  --action-primary-press: #c4353a;
   --action-primary-text: #ffffff;
-  --action-secondary: #e8eaee;
-  --action-secondary-hover: #dcdfe5;
-  --action-danger: #dc2626;
-  --action-danger-bg: rgba(220,38,38,0.10);
-  --action-danger-solid-hover: #b91c1c;
+  --action-secondary: #e9e9e6;
+  --action-secondary-hover: #dededa;
+  --action-danger: #d92d20;
+  --action-danger-bg: rgba(217,45,32,0.10);
+  --action-danger-solid-hover: #b42318;
 
-  --button-height: 36px;
-  --button-height-sm: 30px;
-  --button-height-icon: 36px;
-  --button-padding-x: 18px;
-  --button-radius: var(--radius-pill);
-  --button-bg: #e8eaee;
-  --button-bg-hover: #dcdfe5;
-  --button-bg-active: #d0d4db;
+  --button-height: 34px;
+  --button-height-sm: 28px;
+  --button-height-icon: 34px;
+  --button-padding-x: 14px;
+  --button-radius: var(--radius-sm);
+  --button-bg: #e9e9e6;
+  --button-bg-hover: #dededa;
+  --button-bg-active: #d3d3ce;
   --button-border: transparent;
   --button-border-hover: transparent;
   --button-text: var(--text-0);
   --button-text-hover: var(--text-0);
-  --button-focus: rgba(249,115,22,0.20);
-  --button-shadow: 0 1px 2px rgba(16,24,40,0.05);
-  --button-shadow-hover: 0 1px 2px rgba(16,24,40,0.05);
+  --button-focus: rgba(229,72,77,0.25);
+  --button-shadow: none;
+  --button-shadow-hover: none;
 
   --panel-bg: var(--surface-raised);
   --panel-border: var(--surface-outline);
-  --shadow-panel: 0 1px 2px rgba(16,24,40,0.05), 0 4px 14px rgba(16,24,40,0.08);
+  --shadow-panel: 0 1px 2px rgba(20,20,22,0.05), 0 4px 12px rgba(20,20,22,0.06);
 
   --success: #16a34a;
   --success-bg: rgba(22,163,74,0.10);
-  --error: #dc2626;
-  --error-bg: rgba(220,38,38,0.10);
-  --info: #2563eb;
-  --info-bg: rgba(37,99,235,0.10);
+  --error: #d92d20;
+  --error-bg: rgba(217,45,32,0.10);
+  --info: #2f6fde;
+  --info-bg: rgba(47,111,222,0.10);
   --warning: #d97706;
   --warning-bg: rgba(217,119,6,0.12);
 
-  --shadow-xs: 0 1px 2px rgba(16,24,40,0.05);
-  --shadow-sm: 0 1px 2px rgba(16,24,40,0.05), 0 4px 14px rgba(16,24,40,0.08);
-  --shadow: 0 1px 2px rgba(16,24,40,0.05), 0 4px 14px rgba(16,24,40,0.08);
-  --shadow-lg: 0 4px 14px rgba(16,24,40,0.08), 0 16px 40px rgba(16,24,40,0.14);
-  --shadow-xl: 0 8px 20px rgba(16,24,40,0.12), 0 24px 56px rgba(16,24,40,0.16);
-  --shadow-card: 0 1px 2px rgba(16,24,40,0.05), 0 4px 14px rgba(16,24,40,0.08);
-  --shadow-lift: 0 4px 14px rgba(16,24,40,0.08), 0 16px 40px rgba(16,24,40,0.14);
-  --shadow-elevated: 0 8px 20px rgba(16,24,40,0.12), 0 24px 56px rgba(16,24,40,0.16);
+  --shadow-xs: 0 1px 2px rgba(20,20,22,0.05);
+  --shadow-sm: 0 1px 2px rgba(20,20,22,0.05), 0 4px 12px rgba(20,20,22,0.06);
+  --shadow: 0 1px 2px rgba(20,20,22,0.05), 0 4px 12px rgba(20,20,22,0.06);
+  --shadow-lg: 0 4px 12px rgba(20,20,22,0.08), 0 16px 36px rgba(20,20,22,0.12);
+  --shadow-xl: 0 8px 20px rgba(20,20,22,0.10), 0 24px 52px rgba(20,20,22,0.14);
+  --shadow-card: 0 1px 2px rgba(20,20,22,0.04);
+  --shadow-lift: 0 4px 12px rgba(20,20,22,0.08), 0 16px 36px rgba(20,20,22,0.12);
+  --shadow-elevated: 0 8px 20px rgba(20,20,22,0.10), 0 24px 52px rgba(20,20,22,0.14);
   --shadow-inset: none;
 
-  --radius-sm: 8px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  /* 剪辑台风格：圆角收紧 */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 980px;
 
-  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, 'Fira Code', Consolas, monospace;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --sp-1: 4px;
   --sp-2: 8px;
@@ -111,21 +113,21 @@
   --ease-spring: var(--ease-out);
 
   /* semantic tokens (overridden per theme) */
-  --overlay-track: rgba(23,24,26,0.06);
+  --overlay-track: rgba(20,20,22,0.06);
   --seg-active-bg: #ffffff;
   --on-accent: #ffffff;
   --on-media: rgba(255,255,255,0.85);
-  --scrim: rgba(15,23,42,0.45);
-  --header-bg: rgba(247,248,250,0.75);
-  --inverse-surface: #17181a;
+  --scrim: rgba(12,12,14,0.45);
+  --header-bg: rgba(244,244,242,0.85);
+  --inverse-surface: #161618;
   --on-inverse: #ffffff;
   /* 视频播放/预览区固定深底（两主题一致，深色块不覆写） */
-  --media-surface: #0b0d10;
-  --scrollbar-thumb: rgba(92,99,112,0.28);
-  --scrollbar-thumb-hover: rgba(92,99,112,0.42);
-  --border-hover: #c3c9d2;
-  --switch-bg: #e8eaee;
-  --action-danger-bg-hover: rgba(220,38,38,0.16);
+  --media-surface: #0a0a0b;
+  --scrollbar-thumb: rgba(93,95,102,0.28);
+  --scrollbar-thumb-hover: rgba(93,95,102,0.45);
+  --border-hover: #bdbdb6;
+  --switch-bg: #dededa;
+  --action-danger-bg-hover: rgba(217,45,32,0.16);
   --warn-text: #92400e;
   --warn-bg: #fffbeb;
   --warn-border: #fde68a;
@@ -146,105 +148,105 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* gateway 石板蓝灰暗色（区别于纯黑，带 slate 蓝调） */
-  --surface-base: #0b0f16;
-  --surface-raised: #131a24;
-  --surface-muted: #131a24;
-  --surface-soft: #0e141d;
-  --surface-input: #131a24;
-  --surface-outline: rgba(148,163,184,0.14);
-  --surface-outline-strong: rgba(148,163,184,0.28);
+  /* 剪辑台石墨灰：中性无色偏，画面颜色不被界面带偏 */
+  --surface-base: #0d0d0f;
+  --surface-raised: #161619;
+  --surface-muted: #161619;
+  --surface-soft: #111113;
+  --surface-input: #1b1b1f;
+  --surface-outline: rgba(255,255,255,0.08);
+  --surface-outline-strong: rgba(255,255,255,0.15);
 
-  --bg-0: #0e141d;
-  --bg-1: #131a24;
-  --bg-2: #182230;
-  --bg-3: #1f2a38;
-  --bg-hover: rgba(148,163,184,0.08);
-  --bg-active: rgba(148,163,184,0.14);
+  --bg-0: #111113;
+  --bg-1: #161619;
+  --bg-2: #1d1d21;
+  --bg-3: #26262b;
+  --bg-hover: rgba(255,255,255,0.05);
+  --bg-active: rgba(255,255,255,0.09);
 
-  --border: rgba(148,163,184,0.14);
-  --border-strong: rgba(148,163,184,0.28);
-  --border-focus: #ffb076;
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.15);
+  --border-focus: #ff6369;
 
-  --text-0: #f1f5f9;
-  --text-1: #dbe2ea;
-  --text-2: rgba(226,232,240,0.65);
-  --text-3: #8b94a3;
+  --text-0: #ededef;
+  --text-1: #c9c9ce;
+  --text-2: rgba(237,237,239,0.62);
+  --text-3: #7c7c85;
 
-  /* 蜜桃橙（dark 下品牌色提亮，platform 同款） */
-  --accent: #ffb076;
-  --accent-dark: #f5934e;
-  --accent-bg: rgba(255,176,118,0.14);
-  --accent-text: #ffb076;
-  --accent-glow: rgba(255,176,118,0.30);
-  --accent-gradient: linear-gradient(135deg, #ffb076 0%, #ff9a5c 100%);
+  /* Reelo 珊瑚红（暗色下提亮） */
+  --accent: #ff6369;
+  --accent-dark: #e5484d;
+  --accent-bg: rgba(255,99,105,0.13);
+  --accent-text: #ff7a7f;
+  --accent-glow: rgba(255,99,105,0.28);
+  --accent-gradient: linear-gradient(180deg, #ff6f74 0%, #f2555b 100%);
 
-  --action-primary: #ffb076;
-  --action-primary-hover: #ffc194;
-  --action-primary-press: #f5934e;
-  --action-secondary: #1f2a38;
-  --action-secondary-hover: #28364a;
-  --action-danger: #f87171;
-  --action-danger-bg: rgba(248,113,113,0.14);
-  --action-danger-solid-hover: #fca5a5;
+  --action-primary: #ff6369;
+  --action-primary-hover: #ff7a7f;
+  --action-primary-press: #e5484d;
+  --action-secondary: #26262b;
+  --action-secondary-hover: #2f2f35;
+  --action-danger: #ff6b5f;
+  --action-danger-bg: rgba(255,107,95,0.14);
+  --action-danger-solid-hover: #ff8a80;
 
-  --button-bg: #1f2a38;
-  --button-bg-hover: #28364a;
-  --button-bg-active: #31435c;
-  --button-focus: rgba(255,176,118,0.30);
-  --button-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  --button-shadow-hover: 0 1px 2px rgba(0,0,0,0.3);
+  --button-bg: #232327;
+  --button-bg-hover: #2c2c31;
+  --button-bg-active: #35353b;
+  --button-focus: rgba(255,99,105,0.32);
+  --button-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  --button-shadow-hover: inset 0 1px 0 rgba(255,255,255,0.06);
 
-  --shadow-panel: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.35);
+  --shadow-panel: 0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.4);
 
-  --success: #4ade80;
-  --success-bg: rgba(74,222,128,0.14);
-  --error: #f87171;
-  --error-bg: rgba(248,113,113,0.14);
-  --info: #60a5fa;
-  --info-bg: rgba(96,165,250,0.14);
-  --warning: #fbbf24;
-  --warning-bg: rgba(251,191,36,0.14);
+  --success: #3dd68c;
+  --success-bg: rgba(61,214,140,0.13);
+  --error: #ff6b5f;
+  --error-bg: rgba(255,107,95,0.14);
+  --info: #6aa8ff;
+  --info-bg: rgba(106,168,255,0.14);
+  --warning: #f5b544;
+  --warning-bg: rgba(245,181,68,0.14);
 
-  --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.35);
-  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.35);
-  --shadow-lg: 0 4px 14px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.5);
-  --shadow-xl: 0 8px 20px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.55);
-  --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.35);
-  --shadow-lift: 0 4px 14px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.5);
-  --shadow-elevated: 0 8px 20px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.55);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.35);
+  --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.35);
+  --shadow-lg: 0 4px 14px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.55);
+  --shadow-xl: 0 8px 20px rgba(0,0,0,0.5), 0 24px 56px rgba(0,0,0,0.6);
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.03) inset;
+  --shadow-lift: 0 4px 14px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.55);
+  --shadow-elevated: 0 8px 20px rgba(0,0,0,0.5), 0 24px 56px rgba(0,0,0,0.6);
 
-  --overlay-track: rgba(148,163,184,0.10);
-  --seg-active-bg: #28364a;
-  --on-accent: #2a1503;
-  --scrim: rgba(0,0,0,0.60);
-  --header-bg: rgba(11,15,22,0.75);
-  --inverse-surface: #f1f5f9;
-  --on-inverse: #17181a;
-  --scrollbar-thumb: rgba(148,163,184,0.25);
-  --scrollbar-thumb-hover: rgba(148,163,184,0.40);
-  --border-hover: rgba(148,163,184,0.40);
-  --switch-bg: #1f2a38;
-  --action-danger-bg-hover: rgba(248,113,113,0.22);
-  --warn-text: #fbbf24;
-  --warn-bg: rgba(251,191,36,0.12);
-  --warn-border: rgba(251,191,36,0.28);
-  --warn-link: #fcd34d;
-  --warn-link-hover-bg: rgba(251,191,36,0.18);
-  --tag-success-text: #4ade80;
-  --tag-info-text: #60a5fa;
-  --tag-warning-text: #fbbf24;
-  --accent-purple: #818cf8;
-  --accent-purple-text: #a5b4fc;
-  --accent-purple-bg: rgba(129,140,248,0.16);
+  --overlay-track: rgba(255,255,255,0.06);
+  --seg-active-bg: #2c2c31;
+  --on-accent: #ffffff;
+  --scrim: rgba(0,0,0,0.65);
+  --header-bg: rgba(13,13,15,0.88);
+  --inverse-surface: #ededef;
+  --on-inverse: #161618;
+  --scrollbar-thumb: rgba(255,255,255,0.14);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.26);
+  --border-hover: rgba(255,255,255,0.24);
+  --switch-bg: #2c2c31;
+  --action-danger-bg-hover: rgba(255,107,95,0.22);
+  --warn-text: #f5b544;
+  --warn-bg: rgba(245,181,68,0.12);
+  --warn-border: rgba(245,181,68,0.28);
+  --warn-link: #f8c96f;
+  --warn-link-hover-bg: rgba(245,181,68,0.18);
+  --tag-success-text: #3dd68c;
+  --tag-info-text: #6aa8ff;
+  --tag-warning-text: #f5b544;
+  --accent-purple: #8b8cff;
+  --accent-purple-text: #a8a9ff;
+  --accent-purple-bg: rgba(139,140,255,0.16);
 }
 
 html, body, #__nuxt { height: 100%; }
 
 body {
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 13.5px;
   background: var(--surface-base);
   color: var(--text-0);
   line-height: 1.6;
@@ -256,7 +258,7 @@ body {
 
 h1, h2, h3, h4, h5 {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 650;
   line-height: 1.25;
   color: var(--text-0);
   letter-spacing: -0.02em;
@@ -288,21 +290,21 @@ p { line-height: 1.7; }
   transition: background 0.18s var(--ease-out), color 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), transform 0.12s var(--ease-out);
 }
 .btn:hover { background: var(--button-bg-hover); color: var(--button-text-hover); box-shadow: var(--button-shadow-hover); }
-.btn:active { transform: scale(0.97); }
+.btn:active { transform: scale(0.98); }
 .btn:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--button-focus); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary {
-  /* ChatFire 签名主 CTA：品牌渐变 + 悬停发光 + 轻微放大 */
-  background: var(--accent-gradient);
+  /* Reelo 主按钮：实色珊瑚红，悬停提亮，不放大（剪辑台工具感） */
+  background: var(--action-primary);
   color: var(--on-accent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
 }
 .btn-primary:hover {
-  background: var(--accent-gradient);
+  background: var(--action-primary-hover);
   color: var(--on-accent);
-  box-shadow: 0 2px 10px var(--accent-glow), 0 4px 18px var(--accent-glow);
-  transform: scale(1.03);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 3px var(--accent-bg);
 }
-.btn-primary:active { transform: scale(1); filter: brightness(0.94); }
+.btn-primary:active { transform: scale(0.98); background: var(--action-primary-press); }
 .btn-danger { background: var(--action-danger-bg); color: var(--action-danger); }
 .btn-danger:hover { background: var(--action-danger-bg-hover); color: var(--action-danger); }
 .btn-ghost { background: transparent; color: var(--accent-text); box-shadow: none; }
