@@ -960,15 +960,38 @@
     },
     "voice": {
       "batch": "生成配音",
-      "batchHint": "用 TTS 给整集台词配音：每个角色用自己上传的音色；已经配过且台词没改的句子跳过",
-      "confirmBatch": "给整集台词生成配音？需要服务器上的 ComfyUI 装好 IndexTTS2，没上传音色的角色会跳过。",
+      "batchHint": "用 TTS 给整集台词配音：没有音色的角色先按角色资料自动设计一个；已经配过且台词没改的句子跳过",
+      "confirmBatch": "给整集台词生成配音？需要服务器上的 ComfyUI 装好 IndexTTS2 和 Qwen3-TTS；没有音色的角色会自动设计音色。",
       "started": "配音已开始，完成后在分镜详情里能试听",
       "running": "配音中…",
       "done": "配音完成：{n} 句，失败 {f} 句",
-      "missing": "这些角色还没上传音色：{names}",
+      "missing": "这些角色没能配音：{names}",
       "sheet": "台词清单",
       "sheetHint": "按角色导出本集台词（对口型 / 内心独白 / 画外音 / 配音）",
-      "tracks": "配音"
+      "tracks": "配音",
+      "panel": "配音面板",
+      "panelHint": "逐句试听、改台词或语气后重新生成；某个角色整体不对就换音色",
+      "lineCount": "{n} 句",
+      "auto": "自动设计",
+      "uploaded": "上传",
+      "noVoice": "还没有音色",
+      "promptPlaceholder": "音色描述（留空则自动写）：性别、年龄、音色、语速、说话习惯…",
+      "redesign": "换音色",
+      "redesignConfirm": "重新设计「{name}」的音色，并重做本集他的 {n} 句台词？",
+      "tonePlaceholder": "语气，如：委屈、带哭腔",
+      "regenerate": "重新生成",
+      "regenerating": "生成中…",
+      "notYet": "还没生成",
+      "stale": "台词或语气改过，音频还是旧的",
+      "lipEditConfirm": "这是对口型台词，改字后视频里的口型不会跟着变，要重新生成视频才对得上。继续？",
+      "busy": "这一集已经有配音任务在跑",
+      "empty": "本集分镜里还没有台词",
+      "kind": {
+        "LIP": "对口型",
+        "VO": "内心独白",
+        "OS": "画外音",
+        "DUB": "配音"
+      }
     }
   },
   "errors": {

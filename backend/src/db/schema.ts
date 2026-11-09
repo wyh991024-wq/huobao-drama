@@ -56,6 +56,8 @@ export const characters = sqliteTable('characters', {
   imageUrl: text('image_url'),
   voiceAudioUrl: text('voice_audio_url'),
   voiceAudioName: text('voice_audio_name'),
+  /** 音色描述（给 Qwen3-TTS VoiceDesign 自动设计音色用，可手改） */
+  voicePrompt: text('voice_prompt'),
   referenceImages: text('reference_images'),
   seedValue: text('seed_value'),
   sortOrder: integer('sort_order'),

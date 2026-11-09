@@ -184,12 +184,13 @@ RTX 4090 实测：1920x1088 文生图约 64 秒，带两张参考图的 1344x768
 
 OneThingAI 服务器已装 T8 v1.104.0（commit 3a23f33，GPL-3.0，仅装在服务器上，不随本仓库分发）。只装了代码（排除 examples/tests/docs），无额外 pip 依赖。服务器连 GitHub 不稳定时，在本机 clone 后 scp 上传。T8 的人物音色 / 对白需要角色声音样本或台词录音，尚未接入火宝流程。
 
-## 台词配音（TTS）：IndexTTS2
+## 台词配音（TTS）：IndexTTS2 + Qwen3-TTS
 
 台词驱动剧本里，只有对口型台词（`shot_spec.dialogue`）由 H3 在视频里说（用角色音色样本做 `#角色名` 参考）；`[VO]` 内心独白、`[OS]` 画外音、只配音的角色（项目 metadata `dub_only_characters`，如簿簿、线团团）的台词写进 `shot_spec.voiceover`，由 TTS 配音，拼接成片时混入。名条和 `[画面文字]`（`shot_spec.onscreen_text`）拼接时用 FFmpeg 叠加（字体：`SUBTITLE_FONT`，Windows 默认微软雅黑）。
 
-- **节点**：[snicolast/ComfyUI-IndexTTS2](https://github.com/snicolast/ComfyUI-IndexTTS2)（IndexTTS-2，零样本克隆音色 + 情绪向量）。安装脚本 `docs/server/install_indextts2.sh`。上游 README 写的是只在 Windows 测过，Linux 上首次运行请先在 ComfyUI 界面里手动跑通一次。
-- **音色**：在角色页给每个角色上传 5-15 秒参考人声（`voice_audio_url`）。同一个人的不同造型（太白金星·天庭 / 太白金星·物业）、编号群角色（线团团甲/乙/丙）共用一个音色。
+- **节点**：[snicolast/ComfyUI-IndexTTS2](https://github.com/snicolast/ComfyUI-IndexTTS2)（IndexTTS-2，零样本克隆音色 + 情绪向量）。音色设计用 [1038lab/ComfyUI-QwenTTS](https://github.com/1038lab/ComfyUI-QwenTTS) 的 `AILab_Qwen3TTSVoiceDesign`（Qwen3-TTS-12Hz-1.7B-VoiceDesign）。两个一起装：`docs/server/install_tts.sh`（国内服务器：节点代码本机下载后 scp，模型全走 ModelScope，依赖锁住 protobuf/torch/transformers 不被改动）。2026-11-08 已在 OneThingAI A100 上跑通 IndexTTS2（首句约 86 秒，含加载模型）。
+- **音色**：角色页上传的 5-15 秒参考人声（`voice_audio_url`）优先；没有的话，配音时自动设计——文本模型按角色资料和台词写一句音色描述（存 `characters.voice_prompt`，按启用的 OpenAI 兼容文本配置优先级逐个试，本地 vLLM 没开时自动落到下一个），Qwen3-TTS VoiceDesign 用它念一段该角色的台词，存为 `voice_audio_url`（`voice_audio_name`=「自动设计音色」）。H3 对口型的 `#角色名` 音色参考也用这段。同一个人的不同造型（太白金星·天庭 / 太白金星·物业）、编号群角色（线团团甲/乙/丙）共用一个音色。
 - **工作流**：默认内置（LoadAudio → IndexTTS2EmotionVector → IndexTTS2Simple → IndexTTS2SaveAudio），复用分集视频配置的 ComfyUI 地址；可在视频配置 settings 里用 `ttsWorkflow` 换成自己的 API 格式工作流，占位符 `{{text}} {{audio}} {{name}}` 和 8 个情绪 `{{happy}}…{{calm}}`。表演提示（tone）按关键词换成情绪向量（`services/tts.ts emotionFromTone`）。
-- **接口**：`POST /episodes/:id/voices {force?, storyboard_ids?}` 后台按句生成，结果写进分镜 `voice_tracks`；`GET /episodes/:id/voices` 查状态；`GET /episodes/:id/line-sheet` 导出按角色分好的台词清单。工作台「生成配音」「台词清单」按钮对应这两个接口。
+- **配音面板**（工作台「配音面板」）：左边每个角色的音色试听和音色描述，「换音色」= 按描述（可改）换随机种子重新设计并重做本集他的台词；右边逐句列表，可改台词/语气后「重新生成」（写回 shot_spec；IndexTTS2 没有 seed，重新生成时把 output_gain 在 0.97–1 之间微调来绕开 ComfyUI 缓存）。对口型台词改字后视频口型不会变，界面会先提醒。
+- **接口**：`POST /episodes/:id/voices {force?, storyboard_ids?}` 后台按句生成，结果写进分镜 `voice_tracks`；`GET /episodes/:id/voices` 查状态；`GET /episodes/:id/line-sheet` 导出按角色分好的台词清单；`GET /episodes/:id/voice-lines` 配音面板数据；`POST /episodes/:id/voices/redesign {character_id, voice_prompt?}` 换音色（后台，状态同 GET /voices）；`POST /storyboards/:id/voices/:index {text?, tone?}` 重新生成一句。视频配置 settings 可用 `voiceDesignWorkflow` 换音色设计工作流（占位符 `{{text}} {{instruct}} {{seed}} {{name}}`）。工作台「生成配音」「台词清单」按钮对应这两个接口。
 - **合成**：拼接成片时，只要有镜头带配音或画面文字，就逐镜混音（原声 0.8 + 配音，配音默认排在对口型台词说完之后）、叠字，再拼接。

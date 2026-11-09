@@ -960,15 +960,38 @@
     },
     "voice": {
       "batch": "Generate voices",
-      "batchHint": "TTS for all lines of this episode, each character with its uploaded voice; unchanged lines are skipped",
-      "confirmBatch": "Generate TTS voices for the whole episode? Needs IndexTTS2 on the ComfyUI server; characters without a voice sample are skipped.",
+      "batchHint": "Voice the whole episode with TTS: characters without a voice get one designed from their profile; unchanged lines are skipped",
+      "confirmBatch": "Generate voices for the whole episode? ComfyUI on the server needs IndexTTS2 and Qwen3-TTS; characters without a voice get one designed automatically.",
       "started": "Voice generation started",
       "running": "Generating voices…",
       "done": "Voices done: {n} lines, {f} failed",
-      "missing": "No voice sample yet: {names}",
+      "missing": "Could not voice: {names}",
       "sheet": "Line sheet",
       "sheetHint": "Export this episode's lines grouped by character",
-      "tracks": "Voices"
+      "tracks": "Voices",
+      "panel": "Voice panel",
+      "panelHint": "Listen line by line, edit text or tone and regenerate; redesign a character voice if it sounds wrong",
+      "lineCount": "{n} lines",
+      "auto": "Auto-designed",
+      "uploaded": "Uploaded",
+      "noVoice": "No voice yet",
+      "promptPlaceholder": "Voice description (leave empty to auto-write): gender, age, timbre, pace, habits…",
+      "redesign": "Redesign voice",
+      "redesignConfirm": "Redesign the voice of \"{name}\" and regenerate their {n} lines in this episode?",
+      "tonePlaceholder": "Tone, e.g. hurt, close to tears",
+      "regenerate": "Regenerate",
+      "regenerating": "Generating…",
+      "notYet": "Not generated",
+      "stale": "Text or tone changed; audio is outdated",
+      "lipEditConfirm": "This is a lip-sync line. Changing the words will not change the mouth movement in the video; regenerate the video to match. Continue?",
+      "busy": "A voice job is already running for this episode",
+      "empty": "No lines in this episode yet",
+      "kind": {
+        "LIP": "Lip-sync",
+        "VO": "Inner voice",
+        "OS": "Off-screen",
+        "DUB": "Dub"
+      }
     }
   },
   "errors": {

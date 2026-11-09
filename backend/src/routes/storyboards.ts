@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { generateKeyframeCandidates, listKeyframes, selectKeyframe } from '../services/keyframes.js'
 import { enhanceStoryboardVideo } from '../services/enhance.js'
+import { regenerateLine } from '../services/tts.js'
 import { eq } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
 import { success, created, now, badRequest } from '../utils/response.js'
@@ -188,6 +189,17 @@ app.post('/:id/keyframes/select', async (c) => {
 app.post('/:id/enhance', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   try { return success(c, await enhanceStoryboardVideo(Number(c.req.param('id')), { configId: body.config_id || undefined })) } catch (e: any) { return badRequest(c, e.message) }
+})
+
+// POST /storyboards/:id/voices/:index { text?, tone? } — 重新生成这一镜的第 index 句配音（可先改台词/语气，会写回 shot_spec）
+app.post('/:id/voices/:index', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  try {
+    return success(c, await regenerateLine(Number(c.req.param('id')), Number(c.req.param('index')), {
+      text: typeof body.text === 'string' ? body.text : undefined,
+      tone: typeof body.tone === 'string' ? body.tone : undefined,
+    }))
+  } catch (e: any) { return badRequest(c, e.message) }
 })
 
 // DELETE /storyboards/:id

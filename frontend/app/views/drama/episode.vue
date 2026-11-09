@@ -508,6 +508,7 @@
                 <button v-if="keyframesEnabled" class="btn btn-sm" :disabled="!sbs.length || keyframeBatching" :title="t('episode.kf.batchLastHint')" @click="batchKeyframes('last')">{{ t('episode.kf.batchLast') }}</button>
                 <button class="btn btn-sm" :disabled="!sbs.length || enhanceBatching" :title="t('episode.enhance.batchHint')" @click="batchEnhance">{{ t('episode.enhance.batch') }}</button>
                 <button class="btn btn-sm" :disabled="!sbs.length || voiceRunning" :title="t('episode.voice.batchHint')" @click="batchVoices">{{ voiceRunning ? t('episode.voice.running') : t('episode.voice.batch') }}</button>
+                <button class="btn btn-sm" :disabled="!sbs.length" :title="t('episode.voice.panelHint')" @click="openVoicePanel">{{ t('episode.voice.panel') }}</button>
                 <a class="btn btn-sm" :href="`/api/v1/episodes/${epId}/line-sheet`" target="_blank" :title="t('episode.voice.sheetHint')">{{ t('episode.voice.sheet') }}</a>
                 <button class="btn btn-sm" :class="{ 'is-on': videoSelectMode }" @click="toggleVideoSelectMode">
                   {{ videoSelectMode ? t('episode.vid.selectDone', { n: selectedVideoSbIds.length }) : t('episode.vid.select') }}
@@ -1407,6 +1408,54 @@
         </section>
       </div>
 
+      <div v-if="voicePanel.open" class="overlay image-viewer-overlay" @click.self="voicePanel.open = false">
+        <div class="dialog image-viewer-dialog voice-panel-dialog">
+          <div class="image-viewer-head">
+            <div class="image-viewer-title">{{ t('episode.voice.panel') }}</div>
+            <span class="dim" style="font-size:11px">{{ t('episode.voice.panelHint') }}</span>
+            <button class="btn btn-sm" style="margin-left:auto" :disabled="voiceRunning" @click="batchVoices">{{ voiceRunning ? t('episode.voice.running') : t('episode.voice.batch') }}</button>
+            <button class="btn btn-ghost btn-icon" @click="voicePanel.open = false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="voice-panel-body">
+            <div v-if="voicePanel.loading" class="dim">…</div>
+            <div v-else-if="!voicePanel.lines.length" class="dim">{{ t('episode.voice.empty') }}</div>
+            <template v-else>
+              <section class="voice-chars">
+                <div v-for="ch in voicePanel.characters" :key="ch.name" class="voice-char">
+                  <div class="voice-char-head">
+                    <strong>{{ ch.name }}</strong>
+                    <span class="dim">{{ t('episode.voice.lineCount', { n: ch.lines }) }}</span>
+                    <span class="voice-char-tag">{{ ch.voice_audio_url ? (ch.auto ? t('episode.voice.auto') : t('episode.voice.uploaded')) : t('episode.voice.noVoice') }}</span>
+                  </div>
+                  <audio v-if="ch.voice_audio_url" :key="ch.voice_audio_url" :src="'/' + ch.voice_audio_url" controls preload="none" />
+                  <textarea v-model="ch.edit_prompt" rows="3" class="voice-char-prompt" :placeholder="t('episode.voice.promptPlaceholder')" />
+                  <button class="btn btn-sm" :disabled="voiceRunning || !ch.character_id" @click="redesignVoice(ch)">{{ t('episode.voice.redesign') }}</button>
+                </div>
+              </section>
+              <section class="voice-lines">
+                <div v-for="ln in voicePanel.lines" :key="ln.storyboard_id + '-' + ln.index" class="voice-line" :class="{ 'is-stale': ln.stale, 'is-missing': !ln.url }">
+                  <div class="voice-line-meta">
+                    <span class="voice-line-no">#{{ ln.storyboard_number }}</span>
+                    <span class="voice-char-tag">{{ te('episode.voice.kind.' + ln.kind) ? t('episode.voice.kind.' + ln.kind) : ln.kind }}</span>
+                    <strong>{{ ln.speaker }}</strong>
+                  </div>
+                  <textarea v-model="ln.edit_text" rows="2" class="voice-line-text" />
+                  <input v-model="ln.edit_tone" class="voice-line-tone" :placeholder="t('episode.voice.tonePlaceholder')" />
+                  <div class="voice-line-play">
+                    <audio v-if="ln.url" :key="ln.url" :src="'/' + ln.url" controls preload="none" />
+                    <span v-else class="voice-track-error">{{ ln.error || t('episode.voice.notYet') }}</span>
+                    <span v-if="ln.stale" class="voice-line-stale">{{ t('episode.voice.stale') }}</span>
+                  </div>
+                  <button class="btn btn-sm" :disabled="ln.busy || voiceRunning" @click="regenLine(ln)">{{ ln.busy ? t('episode.voice.regenerating') : t('episode.voice.regenerate') }}</button>
+                </div>
+              </section>
+            </template>
+          </div>
+        </div>
+      </div>
+
       <div v-if="imageViewer.open && imageViewer.src" class="overlay image-viewer-overlay" @click.self="closeImageViewer">
         <div class="dialog image-viewer-dialog">
           <div class="image-viewer-head">
@@ -1561,7 +1610,7 @@ import LocaleSwitcher from '~/components/LocaleSwitcher.vue'
 
 definePageMeta({ layout: 'studio' })
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 const route = useRoute()
 const dramaId = Number(route.params.id)
@@ -2778,19 +2827,69 @@ async function batchVoices() {
   if (!window.confirm(t('episode.voice.confirmBatch'))) return
   voiceRunning.value = true
   try {
-    await episodeAPI.voices(epId.value)
+    const r = await episodeAPI.voices(epId.value)
+    if (r?.started === false) throw new Error(t('episode.voice.busy'))
     toast.success(t('episode.voice.started'))
-    for (;;) {
-      await new Promise(r => setTimeout(r, 4000))
-      const st = await episodeAPI.voicesStatus(epId.value)
-      if (!st || st.status === 'running') continue
-      if (st.status === 'error') throw new Error(st.error)
-      const r = st.result || {}
-      toast.success(t('episode.voice.done', { n: r.generated || 0, f: r.failed || 0 }))
-      if (r.missing_voice?.length) toast.error(t('episode.voice.missing', { names: r.missing_voice.join('、') }))
-      break
-    }
+    await waitVoiceJob()
+  } catch (e) { toastError(e) }
+  finally { voiceRunning.value = false }
+}
+/** 等本集的配音后台任务（整集配音 / 换音色）结束，提示结果并刷新分镜和配音面板 */
+async function waitVoiceJob() {
+  for (;;) {
+    await new Promise(r => setTimeout(r, 4000))
+    const st = await episodeAPI.voicesStatus(epId.value)
+    if (!st || st.status === 'running') continue
+    if (st.status === 'error') throw new Error(st.error)
+    const r = st.result || {}
+    toast.success(t('episode.voice.done', { n: r.generated || 0, f: r.failed || 0 }))
+    if (r.missing_voice?.length) toast.error(t('episode.voice.missing', { names: r.missing_voice.join('、') }))
+    break
+  }
+  await refresh()
+  if (voicePanel.open) await loadVoicePanel()
+}
+
+// 配音面板：逐句试听 / 改台词语气后重新生成 / 角色换音色
+const voicePanel = reactive({ open: false, loading: false, characters: [], lines: [] })
+async function openVoicePanel() {
+  voicePanel.open = true
+  await loadVoicePanel()
+}
+async function loadVoicePanel() {
+  if (!epId.value) return
+  voicePanel.loading = !voicePanel.lines.length
+  try {
+    const d = await episodeAPI.voiceLines(epId.value)
+    voicePanel.characters = (d?.characters || []).map(c => ({ ...c, edit_prompt: c.voice_prompt || '' }))
+    voicePanel.lines = (d?.lines || []).map(l => ({ ...l, edit_text: l.text, edit_tone: l.tone || '', busy: false }))
+  } catch (e) { toastError(e) }
+  finally { voicePanel.loading = false }
+}
+async function regenLine(ln) {
+  const body = {}
+  if (ln.edit_text.trim() && ln.edit_text.trim() !== ln.text) body.text = ln.edit_text.trim()
+  if (ln.edit_tone.trim() !== (ln.tone || '')) body.tone = ln.edit_tone.trim()
+  if (ln.kind === 'LIP' && body.text && !window.confirm(t('episode.voice.lipEditConfirm'))) return
+  ln.busy = true
+  try {
+    const tr = await storyboardAPI.regenerateVoice(ln.storyboard_id, ln.index, body)
+    Object.assign(ln, { url: tr.url, seconds: tr.seconds, error: null, stale: false, text: tr.text, tone: tr.tone || '', edit_text: tr.text, edit_tone: tr.tone || '' })
+    // 第一次给某角色配音会顺带自动设计音色，角色列表跟着刷新
+    if (!voicePanel.characters.find(c => c.name && ln.speaker.startsWith(c.name))?.voice_audio_url) await loadVoicePanel()
     await refresh()
+  } catch (e) { toastError(e) }
+  finally { ln.busy = false }
+}
+async function redesignVoice(ch) {
+  if (voiceRunning.value || !window.confirm(t('episode.voice.redesignConfirm', { name: ch.name, n: ch.lines }))) return
+  voiceRunning.value = true
+  try {
+    const prompt = ch.edit_prompt.trim()
+    const r = await episodeAPI.redesignVoice(epId.value, { character_id: ch.character_id, voice_prompt: prompt && prompt !== (ch.voice_prompt || '') ? prompt : undefined })
+    if (r?.started === false) throw new Error(t('episode.voice.busy'))
+    toast.success(t('episode.voice.started'))
+    await waitVoiceJob()
   } catch (e) { toastError(e) }
   finally { voiceRunning.value = false }
 }
@@ -5594,6 +5693,21 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 .voice-track { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.4; }
 .voice-track audio { width: 100%; height: 28px; }
 .voice-track-error { color: #d9534f; }
+.voice-panel-dialog { width: min(1180px, calc(100vw - 56px)); display: flex; flex-direction: column; }
+.voice-panel-body { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px 18px; overflow: auto; min-height: 0; flex: 1; }
+.voice-chars, .voice-lines { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.voice-char, .voice-line { border: 1px solid var(--surface-outline); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.voice-char-head, .voice-line-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.voice-char-tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--surface-2, rgba(127,127,127,.12)); color: var(--text-2); }
+.voice-char audio, .voice-line audio { width: 100%; height: 30px; }
+.voice-char-prompt, .voice-line-text, .voice-line-tone { width: 100%; box-sizing: border-box; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px solid var(--surface-outline); border-radius: 6px; background: transparent; color: var(--text-1); resize: vertical; }
+.voice-line-no { font-weight: 700; color: var(--text-2); }
+.voice-line-play { display: flex; flex-direction: column; gap: 4px; }
+.voice-line.is-missing { border-style: dashed; }
+.voice-line.is-stale { border-color: #e0a030; }
+.voice-line-stale { color: #c88a1e; font-size: 11px; }
+.voice-char > .btn, .voice-line > .btn { align-self: flex-start; }
+@media (max-width: 760px) { .voice-panel-body { grid-template-columns: 1fr; } }
 /* 绑定参考图：当前分镜已绑定素材的图片平铺（生成时作为参考图提交） */
 .video-bound-refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
 .video-bound-ref {

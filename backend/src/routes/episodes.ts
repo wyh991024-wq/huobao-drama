@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { batchKeyframes } from '../services/keyframes.js'
 import { enhanceEpisodeVideos } from '../services/enhance.js'
-import { episodeLineSheet, getEpisodeVoicesStatus, startEpisodeVoices } from '../services/tts.js'
+import { episodeLineSheet, episodeVoiceLines, getEpisodeVoicesStatus, startEpisodeVoices, startRedesignVoice } from '../services/tts.js'
 import { checkEpisodeStoryboards } from '../agents/tools/storyboard-tools.js'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
@@ -183,6 +183,18 @@ app.post('/:id/voices', async (c) => {
 
 // GET /episodes/:id/voices — 配音任务状态
 app.get('/:id/voices', (c) => success(c, getEpisodeVoicesStatus(Number(c.req.param('id')))))
+
+// GET /episodes/:id/voice-lines — 配音面板：本集说话的角色（音色、音色描述）和逐句音频
+app.get('/:id/voice-lines', async (c) => {
+  try { return success(c, await episodeVoiceLines(Number(c.req.param('id')))) } catch (e: any) { return badRequest(c, e.message) }
+})
+
+// POST /episodes/:id/voices/redesign { character_id, voice_prompt? } — 换音色：重新设计这个角色的音色并重做本集他的台词（后台，状态同 GET /voices）
+app.post('/:id/voices/redesign', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  if (!Number(body.character_id)) return badRequest(c, 'character_id 必填')
+  return success(c, startRedesignVoice(Number(c.req.param('id')), Number(body.character_id), { voicePrompt: typeof body.voice_prompt === 'string' ? body.voice_prompt : undefined }))
+})
 
 // GET /episodes/:id/line-sheet — 按角色分好的台词清单（markdown，给配音用）
 app.get('/:id/line-sheet', async (c) => {

@@ -960,15 +960,38 @@
     },
     "voice": {
       "batch": "음성 생성",
-      "batchHint": "캐릭터별 등록 음색으로 이 회차 대사를 TTS 생성(변경 없는 대사는 건너뜀)",
-      "confirmBatch": "이 회차 대사의 음성을 생성할까요? ComfyUI에 IndexTTS2가 필요하며 음색이 없는 캐릭터는 건너뜁니다.",
+      "batchHint": "TTS로 회차 전체 대사를 음성화합니다. 목소리가 없는 캐릭터는 프로필로 자동 설계하고, 바뀌지 않은 대사는 건너뜁니다",
+      "confirmBatch": "회차 전체 음성을 생성할까요? 서버의 ComfyUI에 IndexTTS2와 Qwen3-TTS가 필요하며, 목소리가 없는 캐릭터는 자동으로 설계됩니다.",
       "started": "음성 생성을 시작했습니다",
       "running": "음성 생성 중…",
       "done": "음성 생성 완료: {n}줄, 실패 {f}줄",
-      "missing": "음색 미등록: {names}",
+      "missing": "음성화하지 못한 캐릭터: {names}",
       "sheet": "대사 목록",
       "sheetHint": "이 회차 대사를 캐릭터별로 내보내기",
-      "tracks": "음성"
+      "tracks": "음성",
+      "panel": "음성 패널",
+      "panelHint": "한 줄씩 듣고 대사나 말투를 고쳐 다시 생성하세요. 캐릭터 목소리가 어색하면 목소리를 다시 설계하세요",
+      "lineCount": "{n}줄",
+      "auto": "자동 설계",
+      "uploaded": "업로드",
+      "noVoice": "목소리 없음",
+      "promptPlaceholder": "목소리 설명(비우면 자동 작성): 성별, 나이, 음색, 말 속도, 말버릇…",
+      "redesign": "목소리 재설계",
+      "redesignConfirm": "\"{name}\"의 목소리를 다시 설계하고 이 회차의 {n}줄을 다시 생성할까요?",
+      "tonePlaceholder": "말투 예: 억울한, 울먹이는",
+      "regenerate": "다시 생성",
+      "regenerating": "생성 중…",
+      "notYet": "미생성",
+      "stale": "대사나 말투가 바뀌어 음성이 예전 것입니다",
+      "lipEditConfirm": "립싱크 대사입니다. 글자를 바꿔도 영상의 입 모양은 바뀌지 않으니 맞추려면 영상을 다시 생성해야 합니다. 계속할까요?",
+      "busy": "이 회차는 이미 음성 작업이 진행 중입니다",
+      "empty": "이 회차에는 아직 대사가 없습니다",
+      "kind": {
+        "LIP": "립싱크",
+        "VO": "속마음",
+        "OS": "화면 밖",
+        "DUB": "더빙"
+      }
     }
   },
   "errors": {
