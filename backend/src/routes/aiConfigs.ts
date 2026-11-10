@@ -17,10 +17,18 @@ function normalizeTemperature(v: any): number | null {
   return n
 }
 
+/** API Key 不回传明文：只给前 3 位和后 4 位，防止任何能打开页面的人把 Key 拿走 */
+export function maskKey(key?: string | null): string {
+  if (!key) return ''
+  return key.length <= 8 ? '****' : `${key.slice(0, 3)}****${key.slice(-4)}`
+}
+const isMasked = (v: unknown) => typeof v === 'string' && v.includes('****')
+
 /** 把 settings JSON 中的 temperature 透出为顶层字段，便于前端直接读写；settings 本身以对象形式返回 */
 function withParsedFields(r: any) {
   return {
     ...toSnakeCase(r),
+    api_key: maskKey(r.apiKey),
     model: r.model ? JSON.parse(r.model) : [],
     temperature: parseConfigTemperature(r.settings),
     settings: parseConfigSettings(r.settings),
@@ -227,7 +235,15 @@ app.post('/test', async (c) => {
   }
 
   const model = Array.isArray(body.model) ? body.model[0] : body.model
-  const probe = buildProbe(body.service_type, body.provider, body.base_url, model, body.api_key)
+  // 表单里是打码后的 Key（没改过）：换回库里同一条配置的真实 Key 再测试
+  let apiKey: string | undefined = body.api_key
+  if (isMasked(apiKey)) {
+    const rows = await db.select().from(schema.aiServiceConfigs)
+    const hit = rows.find(r => (body.id ? r.id === Number(body.id) : r.provider === body.provider && r.baseUrl === body.base_url) && maskKey(r.apiKey) === apiKey)
+      || rows.find(r => maskKey(r.apiKey) === apiKey)
+    apiKey = hit?.apiKey || ''
+  }
+  const probe = buildProbe(body.service_type, body.provider, body.base_url, model, apiKey)
   const probeUrl = redactUrl(probe.url)
 
   logTaskProgress('AIConfig', 'probe-start', {
@@ -315,7 +331,8 @@ app.put('/:id', async (c) => {
   if ('provider' in body) updates.provider = body.provider
   if ('name' in body) updates.name = body.name
   if ('base_url' in body) updates.baseUrl = body.base_url
-  if ('api_key' in body) updates.apiKey = body.api_key
+  // 打码后的 Key 原样传回 = 没改，保留库里的
+  if ('api_key' in body && !isMasked(body.api_key)) updates.apiKey = body.api_key
   if ('model' in body) updates.model = JSON.stringify(body.model)
   if ('priority' in body) updates.priority = body.priority
   if ('is_active' in body) updates.isActive = body.is_active

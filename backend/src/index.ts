@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { basicAuth } from 'hono/basic-auth'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -46,6 +47,13 @@ app.get('/api/v1/health', (c) => c.json({
   version: process.env.HUOBAO_VERSION || undefined,
   timestamp: new Date().toISOString(),
 }))
+
+// 访问密码（可选）：设置环境变量 ACCESS_PASSWORD 后，页面、接口和生成的文件都要先输密码才能访问
+// （浏览器弹出登录框，用户名随便填）。健康检查在上面已注册，不受影响
+const accessPassword = (process.env.ACCESS_PASSWORD || '').trim()
+if (accessPassword) {
+  app.use('*', basicAuth({ realm: 'Reelo', verifyUser: (_user, password) => password === accessPassword }))
+}
 
 // API routes
 const api = new Hono()
