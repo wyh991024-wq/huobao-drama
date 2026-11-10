@@ -946,7 +946,7 @@
       },
       "settings": {
         "title": "Step 1 · Configure AI services",
-        "desc": "Every AI feature needs this first. Open Settings and paste a Huobao API Key to set up text/image/video in one click."
+        "desc": "All AI features need configuration first. Open Settings here and add text, image and video services from the templates."
       }
     },
     "settings": {
