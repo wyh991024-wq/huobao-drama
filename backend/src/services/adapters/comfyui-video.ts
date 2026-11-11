@@ -114,8 +114,11 @@ export function miniMaxH3FramesFor(duration: number, fps: number): number {
 const SPEECH_QUOTE_RE = /((?:(?:说|道|问|喊|叫|答|吼|念|喝|令|嚷|骂|叹|唤|应|嘟囔|低语|喃喃|嘀咕|开口|旁白|独白|画外音|内心OS|OS|VO)[^「“"\n<>]{0,6}?[：:，,]?|[：:])\s*)[「“"]([^」”"\n<>]+)[」”"]/g
 export function toMiniMaxH3Dialogue(prompt: string): string {
   if (/<d>/.test(prompt)) return prompt
-  return prompt.replace(SPEECH_QUOTE_RE, (_m, lead: string, line: string) =>
-    `${lead}<d>[${/[一-鿿]/.test(line) ? 'Chinese' : 'English'}] ${line.trim()}</d>`)
+  return prompt
+    .replace(SPEECH_QUOTE_RE, (_m, lead: string, line: string) =>
+      `${lead}<d>[${/[一-鿿]/.test(line) ? 'Chinese' : 'English'}] ${line.trim()}</d>`)
+    // 台词后面同一行还跟着中文描写时（如「…</d>声音穿透战场喧嚣」），H3 会接着把描写当台词念出来：换行隔开
+    .replace(/<\/d>[ \t]*([^\n<])/g, '</d>\n$1')
 }
 
 /** 工作台按云端 API 写法输出 @图片1、音色参考音频1；本地 H3 文本编码器使用 <Picture i> / <Audio j> 标签 */
