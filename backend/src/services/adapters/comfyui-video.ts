@@ -106,9 +106,21 @@ export function miniMaxH3FramesFor(duration: number, fps: number): number {
   return frames
 }
 
+/**
+ * 本地 H3 只认 <d>…</d> 里的字是要说出来的台词（<d> 是文本编码器的专用 token），
+ * 工作台的写法是「说：「台词」」「旁白：「台词」」，不转换的话模型只知道有人在说话，会自己编出含糊的声音。
+ * 只转换紧跟在说话动词/旁白后面的引号，屏幕上的字（如「营业中」）不动；已经写了 <d> 的提示词原样保留。
+ */
+const SPEECH_QUOTE_RE = /((?:(?:说|道|问|喊|叫|答|吼|念|喝|令|嚷|骂|叹|唤|应|嘟囔|低语|喃喃|嘀咕|开口|旁白|独白|画外音|内心OS|OS|VO)[^「“"\n<>]{0,6}?[：:，,]?|[：:])\s*)[「“"]([^」”"\n<>]+)[」”"]/g
+export function toMiniMaxH3Dialogue(prompt: string): string {
+  if (/<d>/.test(prompt)) return prompt
+  return prompt.replace(SPEECH_QUOTE_RE, (_m, lead: string, line: string) =>
+    `${lead}<d>[${/[一-鿿]/.test(line) ? 'Chinese' : 'English'}] ${line.trim()}</d>`)
+}
+
 /** 工作台按云端 API 写法输出 @图片1、音色参考音频1；本地 H3 文本编码器使用 <Picture i> / <Audio j> 标签 */
 export function toMiniMaxH3Tags(prompt: string): string {
-  return prompt
+  return toMiniMaxH3Dialogue(prompt)
     .replace(/@图片(\d+)\s*/g, '<Picture $1> ')
     .replace(/音色参考音频(\d+)/g, '<Audio $1>')
 }
